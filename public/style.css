@@ -1266,7 +1266,7 @@ tr.dir .fname {
 .dk-state.exited {
   color: #98a2b3;
 }
-
+/* Durum: Durduruldu */
 .dk-state.exited .dot {
   background: #98a2b3;
 }
