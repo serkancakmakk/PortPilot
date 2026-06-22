@@ -459,8 +459,19 @@ body {
   padding: 4px 8px 14px;
 }
 
-.brand-logo {
-  font-size: 20px;
+/* Marka logosu (emoji yerine vektör görsel) */
+.brand-img {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  vertical-align: -7px;
+}
+
+.brand-img.sm {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  vertical-align: middle;
 }
 
 .side-label {
