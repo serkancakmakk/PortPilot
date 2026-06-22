@@ -11,6 +11,25 @@ dosya yönetimi yapmanı sağlayan, çapraz platform (macOS · Windows · Linux)
 
 ---
 
+## 📸 Ekran Görüntüleri
+
+### Dosya Gezgini
+Masaüstü tarzı simge görünümü, kenar çubuğunda hızlı erişim ve disk kullanımı.
+
+![Dosya Gezgini](screenshots/02-explorer.png)
+
+### Docker Yönetimi
+Konteynerleri başlat / durdur / yeniden başlat / sil; canlı log görüntüleyici.
+
+![Docker Yönetimi](screenshots/03-docker.png)
+
+### Bağlantı Ekranı
+Parola veya SSH anahtarı; kayıtlı sunucularla tek tıkla bağlanma.
+
+<p align="center"><img src="screenshots/01-login.png" alt="Bağlantı Ekranı" width="420"></p>
+
+---
+
 ## ✨ Özellikler
 
 ### 📁 Dosya yönetimi
