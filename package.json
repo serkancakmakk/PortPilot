@@ -1,16 +1,71 @@
 {
   "name": "serkanzilla",
   "version": "1.0.0",
-  "description": "Serkanzilla — tarayıcıdan kullanılan, Windows gezgini benzeri SFTP dosya yöneticisi ve Docker paneli",
-  "main": "server.js",
+  "description": "Serkanzilla — masaüstü ve tarayıcıdan kullanılan, Windows gezgini benzeri çok sunuculu SFTP dosya yöneticisi ve Docker paneli",
+  "main": "electron/main.js",
   "type": "commonjs",
+  "author": {
+    "name": "Serkan",
+    "email": "cakmakserkan07@gmail.com"
+  },
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "app": "electron .",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win",
+    "dist:linux": "electron-builder --linux"
   },
   "dependencies": {
     "express": "^4.19.2",
     "multer": "^2.2.0",
     "ssh2": "^1.15.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.serkan.serkanzilla",
+    "productName": "Serkanzilla",
+    "files": [
+      "electron/**/*",
+      "server.js",
+      "public/**/*"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] },
+        { "target": "zip", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "public/icon.png"
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "public/icon.png"
+    },
+    "linux": {
+      "category": "Utility",
+      "maintainer": "Serkan <cakmakserkan07@gmail.com>",
+      "target": [
+        { "target": "AppImage", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "public/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   }
 }

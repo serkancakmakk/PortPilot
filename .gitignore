@@ -12,3 +12,4 @@ servers.json
 # Editör
 .vscode/
 .idea/
+/dist

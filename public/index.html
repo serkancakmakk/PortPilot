@@ -9,15 +9,18 @@
 <body>
   <!-- Bağlantı ekranı -->
   <div id="login" class="login-overlay">
+    <!-- Sol: masaüstü tarzı kayıtlı sunucu simgeleri -->
+    <div id="saved-wrap" class="desktop-servers" hidden>
+      <div class="ds-head">🖥️ Kayıtlı Sunucular</div>
+      <div id="saved-list" class="saved-list"></div>
+      <div class="ds-hint">Bağlanmak için bir sunucuya tıkla</div>
+    </div>
+
+    <!-- Sağ: bağlantı formu -->
     <form id="connect-form" class="login-card">
+      <button type="button" id="login-close" class="login-close" title="Kapat" hidden>✕</button>
       <h1>🦖 Serkanzilla <span class="ver">v1</span></h1>
       <p class="sub">Uzak sunucuya SSH/SFTP ile bağlan</p>
-
-      <!-- Kayıtlı sunucular -->
-      <div id="saved-wrap" class="saved-wrap" hidden>
-        <div class="saved-head">Kayıtlı Sunucular</div>
-        <div id="saved-list" class="saved-list"></div>
-      </div>
 
       <div class="row">
         <label>Sunucu adresi
@@ -60,7 +63,20 @@
 
       <button type="submit" class="connect-btn">Bağlan</button>
       <div id="login-error" class="error"></div>
+      <button type="button" id="open-downloads" class="dl-link">💻 Masaüstü uygulamasını indir (Mac · Windows · Linux)</button>
     </form>
+  </div>
+
+  <!-- Masaüstü uygulaması indirme penceresi -->
+  <div id="downloads" class="editor-overlay" hidden>
+    <div class="dl-box">
+      <div class="editor-head">
+        <span class="editor-title">💻 Masaüstü Uygulaması</span>
+        <div class="spacer"></div>
+        <button id="downloads-close" class="ed-btn">✕ Kapat</button>
+      </div>
+      <div class="dl-body" id="dl-body"></div>
+    </div>
   </div>
 
   <!-- Ana gezgin -->
@@ -82,6 +98,8 @@
 
     <!-- Ana bölüm -->
     <div class="main">
+    <!-- Bağlı sunucular: sekmeler -->
+    <div class="conn-tabs" id="conn-tabs"></div>
     <div class="toolbar">
       <div class="nav-group">
         <button id="btn-back" title="Geri">←</button>

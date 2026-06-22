@@ -1,10 +1,121 @@
 "use strict";
 
+// ---- Aktif bağlantının durumu (sekme değişince swap edilir) ----
 let session = null;
 let cwd = "/";
 let homePath = "/";
-const history = [];
+let history = [];
+
+// ---- Çoklu sunucu: bağlı oturumlar ----
+// Her bağlantı: { id, session, info:{host,username,port}, cwd, homePath, history }
+let connections = [];
+let activeConnId = null;
+
 const $ = (id) => document.getElementById(id);
+
+// Globalleri aktif bağlantı nesnesine yaz (sekme değiştirmeden önce)
+function syncActiveConn() {
+  const c = connections.find((x) => x.id === activeConnId);
+  if (c) { c.session = session; c.cwd = cwd; c.homePath = homePath; c.history = history; }
+}
+
+// Bir bağlantıyı aktif yap: globalleri ondan doldur ve gezgini güncelle
+function activateConn(id) {
+  const c = connections.find((x) => x.id === id);
+  if (!c) return;
+  if (activeConnId && activeConnId !== id) syncActiveConn();
+  activeConnId = id;
+  session = c.session;
+  cwd = c.cwd;
+  homePath = c.homePath;
+  history = c.history;
+  $("login").hidden = true;
+  $("explorer").hidden = false;
+  updateConnInfo(c.info);
+  renderTabs();
+  renderQuickLinks();
+  navigate(cwd, false);
+}
+
+function updateConnInfo(i) {
+  $("conn-info").innerHTML =
+    `<span class="dot"></span>🖧 <b>${i.username}@${i.host}</b><span class="port">:${i.port}</span>`;
+  $("conn-info").title = `Bağlı: ${i.username}@${i.host}:${i.port}`;
+}
+
+// Sekme şeridini çiz
+function renderTabs() {
+  const bar = $("conn-tabs");
+  bar.innerHTML = "";
+  bar.hidden = connections.length === 0;
+  connections.forEach((c) => {
+    const tab = document.createElement("div");
+    tab.className = "conn-tab" + (c.id === activeConnId ? " active" : "");
+    tab.title = `${c.info.username}@${c.info.host}:${c.info.port}`;
+    const label = document.createElement("span");
+    label.className = "ct-label";
+    label.innerHTML = `<span class="ct-dot"></span><span class="ct-name"></span>`;
+    label.querySelector(".ct-name").textContent = c.info.name || `${c.info.username}@${c.info.host}`;
+    const close = document.createElement("button");
+    close.className = "ct-close";
+    close.textContent = "✕";
+    close.title = "Bağlantıyı kapat";
+    close.addEventListener("click", (e) => { e.stopPropagation(); closeConnection(c.id); });
+    tab.appendChild(label);
+    tab.appendChild(close);
+    tab.addEventListener("click", () => { if (c.id !== activeConnId) activateConn(c.id); });
+    bar.appendChild(tab);
+  });
+  // "+" yeni bağlantı ekle
+  const add = document.createElement("button");
+  add.className = "conn-add";
+  add.textContent = "+";
+  add.title = "Yeni sunucuya bağlan";
+  add.addEventListener("click", showAddConnection);
+  bar.appendChild(add);
+}
+
+// Yeni bağlantı eklemek için giriş ekranını göster (mevcutları kapatmadan)
+function showAddConnection() {
+  const f = $("connect-form");
+  f.reset();
+  f.port.value = "22";
+  document.querySelector('.tab[data-auth="password"]').click();
+  $("login-error").textContent = "";
+  $("save-pass-row").hidden = true;
+  $("login-close").hidden = connections.length === 0;
+  $("login").hidden = false;
+  renderSavedServers();
+  setTimeout(() => f.host.focus(), 50);
+}
+
+// Bir bağlantıyı kapat (kendi oturumunu sonlandırarak)
+function closeConnection(id, opts = {}) {
+  const c = connections.find((x) => x.id === id);
+  if (!c) return;
+  if (opts.ask !== false && !confirm(`"${c.info.name || c.info.host}" bağlantısı kapatılsın mı?`)) return;
+  // O bağlantının oturumunu sonlandır
+  if (c.session) {
+    fetch("/api/disconnect", { method: "POST", headers: { "x-session": c.session } }).catch(() => {});
+  }
+  connections = connections.filter((x) => x.id !== id);
+  if (activeConnId === id) {
+    activeConnId = null;
+    if (connections.length) {
+      activateConn(connections[connections.length - 1].id);
+    } else {
+      // Hiç bağlantı kalmadı → giriş ekranı
+      session = null; cwd = "/"; homePath = "/"; history = [];
+      $("explorer").hidden = true;
+      $("login-close").hidden = true;
+      $("login").hidden = false;
+      renderTabs();
+      renderSavedServers();
+    }
+  } else {
+    renderTabs();
+  }
+}
 
 // ---------- API yardımcıları ----------
 async function api(pathName, opts = {}) {
@@ -86,18 +197,20 @@ $("connect-form").addEventListener("submit", async (e) => {
     try { data = text ? JSON.parse(text) : {}; }
     catch (_) { throw new Error("Sunucudan geçersiz yanıt: " + (text.slice(0, 120) || "boş yanıt")); }
     if (!r.ok) throw new Error(data.error || ("Bağlanılamadı (HTTP " + r.status + ")"));
-    session = data.session;
-    maybeSaveServer(body); // istenirse sunucuyu kaydet
     const i = data.info;
-    $("conn-info").innerHTML =
-      `<span class="dot"></span>🖧 <b>${i.username}@${i.host}</b><span class="port">:${i.port}</span>`;
-    $("conn-info").title = `Bağlı: ${i.username}@${i.host}:${i.port}`;
-    $("login").hidden = true;
-    $("explorer").hidden = false;
-    history.length = 0;
-    homePath = data.home || "/";
-    renderQuickLinks();
-    navigate(homePath, false);
+    const savedName = maybeSaveServer(body); // istenirse sunucuyu kaydet
+    // Aynı sunucuya tekrar bağlanıldıysa eski sekmeyi koru, yenisini ekle
+    const home = data.home || "/";
+    const conn = {
+      id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+      session: data.session,
+      info: { host: i.host, username: i.username, port: i.port, name: savedName || null },
+      cwd: home, homePath: home, history: [],
+    };
+    if (activeConnId) syncActiveConn();
+    connections.push(conn);
+    $("login-close").hidden = true;
+    activateConn(conn.id);
   } catch (err) {
     $("login-error").textContent = err.message;
   } finally {
@@ -105,19 +218,26 @@ $("connect-form").addEventListener("submit", async (e) => {
   }
 });
 
+// Aktif bağlantıyı kapat (sekme). Oturum 401 olduğunda da çağrılır.
 function logout() {
-  if (session) { api("disconnect", { method: "POST" }).catch(() => {}); }
-  session = null;
-  $("explorer").hidden = true;
-  $("login").hidden = false;
-  $("save-server").checked = false;
-  $("save-pass").checked = false;
-  $("save-pass-row").hidden = true;
-  $("save-name").value = "";
-  renderSavedServers();
+  if (activeConnId) {
+    closeConnection(activeConnId, { ask: false });
+  } else {
+    session = null;
+    $("explorer").hidden = true;
+    $("login").hidden = false;
+    renderSavedServers();
+  }
 }
 
-$("btn-disconnect").addEventListener("click", logout);
+$("btn-disconnect").addEventListener("click", () => {
+  if (activeConnId) closeConnection(activeConnId);
+});
+
+// Giriş ekranını kapat (yeni bağlantı eklemekten vazgeçildiğinde)
+$("login-close").addEventListener("click", () => {
+  if (connections.length) { $("login").hidden = true; }
+});
 
 // ---------- Kayıtlı sunucular (sunucudaki servers.json dosyasında kalıcı) ----------
 let savedServers = [];
@@ -128,12 +248,13 @@ $("save-server").addEventListener("change", (e) => {
 });
 
 // Başarılı bağlantıdan sonra çağrılır → dosyaya kaydeder
-async function maybeSaveServer(body) {
-  if (!$("save-server").checked) return;
+function maybeSaveServer(body) {
+  if (!$("save-server").checked) return null;
   const savePass = $("save-pass").checked;
   const isKey = !!(body.privateKey && body.privateKey.trim());
+  const name = ($("save-name").value.trim()) || `${body.username}@${body.host}`;
   const server = {
-    name: ($("save-name").value.trim()) || `${body.username}@${body.host}`,
+    name,
     host: body.host, port: body.port, username: body.username,
     auth: isKey ? "key" : "password",
     // Kimlik bilgileri yalnızca kullanıcı isterse saklanır
@@ -141,8 +262,9 @@ async function maybeSaveServer(body) {
     privateKey: savePass && isKey ? body.privateKey : "",
     passphrase: savePass && isKey ? body.passphrase : "",
   };
-  try { await api("servers", { method: "POST", json: server }); }
-  catch (e) { console.warn("Sunucu kaydedilemedi:", e.message); }
+  api("servers", { method: "POST", json: server })
+    .catch((e) => console.warn("Sunucu kaydedilemedi:", e.message));
+  return name;
 }
 
 async function renderSavedServers() {
@@ -157,20 +279,26 @@ async function renderSavedServers() {
   list.innerHTML = "";
   servers.forEach((s) => {
     const hasCreds = !!(s.password || s.privateKey);
-    const el = document.createElement("div");
-    el.className = "saved-item";
+    // Hâlihazırda bu sunucuya bağlı bir sekme var mı?
+    const online = connections.some(
+      (c) => c.info.host === s.host && c.info.username === s.username && String(c.info.port) === String(s.port)
+    );
+    const el = document.createElement("button");
+    el.type = "button";
+    el.className = "srv-tile" + (online ? " online" : "");
+    el.title = `${s.username}@${s.host}:${s.port} • ${s.auth === "key" ? "SSH anahtarı" : "parola"}`;
     el.innerHTML = `
-      <span class="si-ico">🖥️</span>
-      <div class="si-body">
-        <div class="si-name"></div>
-        <div class="si-sub"></div>
-      </div>
-      <span class="si-lock" title="${hasCreds ? "Kimlik bilgisi kayıtlı" : "Bağlanırken parola istenir"}">${hasCreds ? "🔓" : "🔒"}</span>
-      <button type="button" class="si-del" title="Sil">×</button>`;
-    el.querySelector(".si-name").textContent = s.name;
-    el.querySelector(".si-sub").textContent = `${s.username}@${s.host}:${s.port} • ${s.auth === "key" ? "SSH anahtarı" : "parola"}`;
+      <span class="srv-ico">${computerSVG()}</span>
+      <span class="srv-text">
+        <span class="srv-name"></span>
+        <span class="srv-host"></span>
+      </span>
+      <span class="srv-badge" title="${hasCreds ? "Kimlik bilgisi kayıtlı" : "Bağlanırken parola istenir"}">${hasCreds ? "🔓" : "🔒"}</span>
+      <span class="srv-del" title="Kaydı sil">×</span>`;
+    el.querySelector(".srv-name").textContent = s.name;
+    el.querySelector(".srv-host").textContent = `${s.username}@${s.host}:${s.port}`;
     el.addEventListener("click", () => selectServer(s));
-    el.querySelector(".si-del").addEventListener("click", async (e) => {
+    el.querySelector(".srv-del").addEventListener("click", async (e) => {
       e.stopPropagation();
       if (!confirm(`"${s.name}" kaydı silinsin mi?`)) return;
       try { await api("servers/" + encodeURIComponent(s.id), { method: "DELETE" }); }
@@ -179,12 +307,17 @@ async function renderSavedServers() {
     });
     list.appendChild(el);
   });
-  if (servers.length) {
-    const div = document.createElement("div");
-    div.className = "saved-divider";
-    div.textContent = "veya yeni bağlantı";
-    list.appendChild(div);
-  }
+}
+
+// Login ekranındaki kayıtlı sunucular için bilgisayar (masaüstü) simgesi
+function computerSVG() {
+  return `<svg width="30" height="30" viewBox="0 0 48 48" class="srv-svg" aria-hidden="true">
+    <rect x="6" y="8" width="36" height="24" rx="2.5" fill="#5b9bff"/>
+    <rect x="9" y="11" width="30" height="18" rx="1.2" fill="#eaf2ff"/>
+    <rect x="6" y="8" width="36" height="24" rx="2.5" fill="none" stroke="#2f6fed" stroke-width="1.4"/>
+    <path d="M18 32h12l2 6H16z" fill="#cdd9ee"/>
+    <rect x="13" y="38" width="22" height="3" rx="1.5" fill="#9fb3d4"/>
+  </svg>`;
 }
 
 // Kayıtlı sunucuyu forma doldur; kimlik bilgisi varsa direkt bağlan
@@ -919,3 +1052,109 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault(); $("btn-up").click();
   }
 });
+
+// ---------- Masaüstü uygulaması indirmeleri (web modunda) ----------
+$("open-downloads").addEventListener("click", openDownloads);
+$("downloads-close").addEventListener("click", () => { $("downloads").hidden = true; });
+
+async function openDownloads() {
+  $("downloads").hidden = false;
+  const body = $("dl-body");
+  body.innerHTML = `<div class="dl-msg">Yükleniyor…</div>`;
+  let data;
+  try { data = await api("downloads"); }
+  catch (e) { body.innerHTML = `<div class="dl-msg">Hata: ${escapeHtml(e.message)}</div>`; return; }
+  if (!data.available || !data.items.length) {
+    body.innerHTML =
+      `<div class="dl-msg">Henüz hazır kurulum dosyası yok.<br><br>` +
+      `Bilgisayarında <code>npm run dist</code> komutunu çalıştırınca üretilen dosyalar ` +
+      `<code>dist/</code> klasörüne düşer ve burada listelenir.</div>`;
+    return;
+  }
+  // Kullanıcının işletim sistemini algıla ve en uygun indirmeyi öne çıkar
+  const det = await detectPlatform();
+  const best = pickBest(data.items, det);
+  let html = "";
+  if (best) {
+    html += `
+      <a class="dl-rec" href="${best.url}" download>
+        <span class="dl-rec-ic">${best.icon}</span>
+        <span class="dl-rec-info">
+          <span class="dl-rec-top">Senin sistemin için önerilen</span>
+          <span class="dl-rec-name">${escapeHtml(best.label)} — ${escapeHtml(prettyName(best))}</span>
+          <span class="dl-rec-meta">${escapeHtml(best.name)} • ${fmtSize(best.size)}</span>
+        </span>
+        <span class="dl-rec-btn">⬇ İndir</span>
+      </a>
+      <div class="dl-allhead">Tüm sürümler</div>`;
+  }
+
+  // Platforma göre grupla
+  const groups = {};
+  data.items.forEach((it) => { (groups[it.label] = groups[it.label] || { icon: it.icon, items: [] }).items.push(it); });
+  html += Object.keys(groups).map((label) => {
+    const g = groups[label];
+    const rows = g.items.map((it) => `
+      <a class="dl-item${best && it.name === best.name ? " current" : ""}" href="${it.url}" download>
+        <span class="dl-ic">⬇</span>
+        <span class="dl-info">
+          <span class="dl-name">${escapeHtml(prettyName(it))}</span>
+          <span class="dl-meta">${escapeHtml(it.name)} • ${fmtSize(it.size)}</span>
+        </span>
+      </a>`).join("");
+    return `<div class="dl-group"><div class="dl-head">${g.icon} ${escapeHtml(label)}</div>${rows}</div>`;
+  }).join("");
+  body.innerHTML = html;
+}
+
+// Tarayıcıdan işletim sistemi + mimari tahmini
+async function detectPlatform() {
+  let os = "", arch = "x64";
+  const ua = navigator.userAgent || "";
+  const uad = navigator.userAgentData;
+  if (uad && uad.platform) {
+    const p = uad.platform.toLowerCase();
+    os = p.includes("mac") ? "mac" : p.includes("win") ? "win" : p.includes("linux") ? "linux" : "";
+    try {
+      const hv = await uad.getHighEntropyValues(["architecture"]);
+      if ((hv.architecture || "").includes("arm")) arch = "arm64";
+    } catch (_) {}
+  } else {
+    os = /mac/i.test(ua) ? "mac" : /win/i.test(ua) ? "win" : /linux|x11|android/i.test(ua) ? "linux" : "";
+    if (/arm64|aarch64/i.test(ua)) arch = "arm64";
+  }
+  return { os, arch };
+}
+
+// O işletim sistemi için en uygun kurulum dosyasını seç
+function pickBest(items, det) {
+  if (!det.os) return null;
+  const cand = items.filter((i) => i.os === det.os);
+  if (!cand.length) return null;
+  let pool = cand.filter((i) => i.arch === det.arch);
+  if (!pool.length) pool = cand;
+  const rank = (i) => {
+    const n = i.name.toLowerCase();
+    if (n.endsWith(".dmg")) return 0;
+    if (n.endsWith(".exe") && /setup/i.test(n)) return 0;
+    if (n.endsWith(".appimage")) return 0;
+    if (n.endsWith(".exe")) return 1;       // taşınabilir exe
+    if (n.endsWith(".zip")) return 3;       // zip en son
+    return 2;
+  };
+  return pool.slice().sort((a, b) => rank(a) - rank(b))[0];
+}
+
+function prettyName(it) {
+  let archTxt = "";
+  if (it.arch === "arm64") archTxt = it.os === "mac" ? "Apple Silicon / ARM64" : "ARM64";
+  else if (it.arch === "x64") archTxt = it.os === "mac" ? "Intel / x64" : "64-bit (x64)";
+  const ext = (it.name.split(".").pop() || "").toUpperCase();
+  const isSetup = /setup/i.test(it.name);
+  const kind = ext === "DMG" ? "DMG kurulum"
+    : ext === "EXE" ? (isSetup ? "Kurulumlu (Setup)" : "Taşınabilir (portable)")
+    : ext === "APPIMAGE" ? "AppImage (taşınabilir)"
+    : ext === "DEB" ? "DEB paketi"
+    : ext === "ZIP" ? "ZIP arşivi" : ext;
+  return archTxt ? `${kind} — ${archTxt}` : kind;
+}

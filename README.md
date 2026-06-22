@@ -68,9 +68,44 @@ Tarayıcıdan **http://localhost:3000** adresini aç.
 
 | Komut | Açıklama |
 |-------|----------|
-| `npm start` | Sunucuyu başlatır |
+| `npm start` | Web sunucusunu başlatır (tarayıcı) |
 | `npm run dev` | Otomatik yeniden başlatmalı geliştirme modu |
 | `PORT=8080 npm start` | Farklı portta çalıştırır |
+| `npm run app` | Masaüstü (Electron) penceresinde çalıştırır |
+
+---
+
+## 🖥️ Masaüstü uygulaması (Mac · Windows · Linux)
+
+Serkanzilla, web aracının yanı sıra **çapraz platform bir masaüstü uygulaması** olarak da paketlenebilir
+(Electron). Kurulum dosyalarını **kendi makinende sen derlersin** — depoda hazır ikili (binary) gönderilmez.
+
+```bash
+npm install          # electron + electron-builder dahil bağımlılıklar
+npm run dist         # bulunduğun işletim sistemi için derler
+```
+
+Belirli platformlar için:
+
+| Komut | Çıktı (`dist/` klasörüne) |
+|-------|---------------------------|
+| `npm run dist:mac` | `.dmg` (Intel + Apple Silicon) ve `.zip` |
+| `npm run dist:win` | `Setup .exe` (kurulumlu) ve taşınabilir `.exe` |
+| `npm run dist:linux` | `.AppImage` (x64 + arm64) |
+| `npm run dist` | Geçerli işletim sistemi için hepsi |
+
+> **Not:** Windows derlemesi macOS/Linux üzerinde electron-builder'ın gömülü wine'ı ile yapılabilir.
+> macOS hedefleri yalnızca macOS'ta üretilebilir. Linux `.deb`, macOS'ta düzgün üretilemediği için
+> devre dışı bırakıldı; **AppImage** her dağıtımda çalışan evrensel formattır.
+
+### Web'den indirme (kullanıcılar için)
+Web arayüzü (`npm start`) açıkken giriş ekranındaki **"💻 Masaüstü uygulamasını indir"** ile
+kullanıcılar **kendi işletim sistemine uygun** kurulumu indirebilir (sistem otomatik algılanır).
+Bu liste sunucudaki `dist/` klasörünü okur — yani **web sunucusunu barındıran makinede**
+`npm run dist` çalıştırılmış (ya da `dist/` kopyalanmış) olmalıdır.
+
+> `dist/` klasörü `.gitignore` ile dışlanmıştır; ikili dosyalar depoyu şişirir.
+> Hazır kurulumları dağıtmak istersen **GitHub Releases**'e yükle (git geçmişine ekleme).
 
 ---
 
