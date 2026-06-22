@@ -1,0 +1,46 @@
+name: Build & Release
+
+# Commit mesajında [release] geçen her push'ta tetiklenir.
+# 3 işletim sisteminde derler ve sürüme (package.json "version") göre
+# bir TASLAK GitHub release oluşturup kurulum dosyalarını yükler.
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch: {} # GitHub arayüzünden elle de çalıştırılabilir
+
+permissions:
+  contents: write # release oluşturup dosya yükleyebilmek için
+
+jobs:
+  release:
+    # Sadece commit mesajı [release] içeriyorsa derle (elle tetiklemede de çalışır)
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.head_commit.message, '[release]')
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest   # .dmg (Intel + Apple Silicon)
+          - os: windows-latest # .exe (kurulumlu + taşınabilir)
+          - os: ubuntu-latest  # .AppImage (x64 + arm64)
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Kaynağı al
+        uses: actions/checkout@v4
+
+      - name: Node.js kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Bağımlılıkları yükle
+        run: npm ci
+
+      - name: Derle ve release'e yükle
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # --publish always → electron-builder, "v{version}" adlı taslak
+        # release'i oluşturur/günceller ve bu platformun dosyalarını yükler.
+        run: npx electron-builder --publish always

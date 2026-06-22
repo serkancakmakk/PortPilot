@@ -40,11 +40,18 @@
     "directories": {
       "output": "dist"
     },
+    "compression": "maximum",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "serkancakmakk",
+        "repo": "Serkanzilla"
+      }
+    ],
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] },
-        { "target": "zip", "arch": ["x64", "arm64"] }
+        { "target": "dmg", "arch": ["x64", "arm64"] }
       ],
       "icon": "public/icon.png"
     },
