@@ -1,0 +1,14 @@
+# Bağımlılıklar
+node_modules/
+
+# Kayıtlı sunucular — parola/anahtar içerebilir, ASLA paylaşma!
+servers.json
+
+# Loglar ve geçici dosyalar
+*.log
+.DS_Store
+.env
+
+# Editör
+.vscode/
+.idea/

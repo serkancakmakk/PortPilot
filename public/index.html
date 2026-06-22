@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Serkanzilla</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Bağlantı ekranı -->
+  <div id="login" class="login-overlay">
+    <form id="connect-form" class="login-card">
+      <h1>🦖 Serkanzilla <span class="ver">v1</span></h1>
+      <p class="sub">Uzak sunucuya SSH/SFTP ile bağlan</p>
+
+      <!-- Kayıtlı sunucular -->
+      <div id="saved-wrap" class="saved-wrap" hidden>
+        <div class="saved-head">Kayıtlı Sunucular</div>
+        <div id="saved-list" class="saved-list"></div>
+      </div>
+
+      <div class="row">
+        <label>Sunucu adresi
+          <input name="host" placeholder="ornek.com veya 192.168.1.10" required autocomplete="off" />
+        </label>
+        <label class="port">Port
+          <input name="port" value="22" />
+        </label>
+      </div>
+      <label>Kullanıcı adı
+        <input name="username" placeholder="root" required autocomplete="off" />
+      </label>
+
+      <div class="tabs">
+        <button type="button" class="tab active" data-auth="password">Parola</button>
+        <button type="button" class="tab" data-auth="key">SSH Anahtarı</button>
+      </div>
+
+      <label data-pane="password">Parola
+        <input name="password" type="password" autocomplete="off" />
+      </label>
+      <div data-pane="key" hidden>
+        <label>Özel anahtar (PEM içeriği)
+          <textarea name="privateKey" rows="4" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+        </label>
+        <label>Anahtar parolası (opsiyonel)
+          <input name="passphrase" type="password" autocomplete="off" />
+        </label>
+      </div>
+
+      <label class="save-row">
+        <input type="checkbox" id="save-server" />
+        <span>Bu sunucuyu kaydet</span>
+        <input type="text" id="save-name" placeholder="Kayıt adı (opsiyonel)" autocomplete="off" />
+      </label>
+      <label class="save-pass-row" id="save-pass-row" hidden>
+        <input type="checkbox" id="save-pass" />
+        <span>Parolayı/anahtarı da bu cihazda sakla (kolay giriş için)</span>
+      </label>
+
+      <button type="submit" class="connect-btn">Bağlan</button>
+      <div id="login-error" class="error"></div>
+    </form>
+  </div>
+
+  <!-- Ana gezgin -->
+  <div id="explorer" hidden>
+    <!-- Sol kenar çubuğu -->
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-logo">🦖</span> Serkanzilla <span class="ver">v1</span></div>
+      <div class="side-label">Hızlı Erişim</div>
+      <nav class="quick" id="quick-links"></nav>
+
+      <div class="side-label" style="margin-top:14px">Araçlar</div>
+      <nav class="quick">
+        <a id="btn-docker"><span class="q-ico">🐳</span> Docker Yönetimi</a>
+      </nav>
+
+      <div class="side-disk" id="side-disk"></div>
+      <button id="btn-disconnect" class="side-disconnect">⏏ Bağlantıyı Kes</button>
+    </aside>
+
+    <!-- Ana bölüm -->
+    <div class="main">
+    <div class="toolbar">
+      <div class="nav-group">
+        <button id="btn-back" title="Geri">←</button>
+        <button id="btn-up" title="Üst klasör">↑</button>
+        <button id="btn-refresh" title="Yenile">⟳</button>
+      </div>
+      <div class="breadcrumb" id="breadcrumb"></div>
+      <div class="spacer"></div>
+      <button id="btn-view" class="tbtn" title="Görünümü değiştir (simge / liste)">▦ Görünüm</button>
+      <button id="btn-newfolder" class="tbtn">📁 Yeni Klasör</button>
+      <button id="btn-download" class="tbtn" title="Seçili dosya/klasörü bilgisayarına indir">⬇ İndir</button>
+      <button id="btn-upload" class="tbtn primary">⬆ Yükle</button>
+      <input type="file" id="file-input" multiple hidden />
+      <span class="conn-info" id="conn-info"></span>
+    </div>
+
+    <div class="file-area" id="file-area">
+      <table class="file-table">
+        <thead>
+          <tr>
+            <th class="c-check"><input type="checkbox" id="check-all" title="Tümünü seç" /></th>
+            <th class="c-name">Ad</th>
+            <th class="c-date">Değiştirilme</th>
+            <th class="c-type">Tür</th>
+            <th class="c-size">Boyut</th>
+          </tr>
+        </thead>
+        <tbody id="file-list"></tbody>
+      </table>
+
+      <!-- Masaüstü tarzı simge (ızgara) görünümü -->
+      <div id="grid" class="grid" hidden></div>
+
+      <div id="empty" class="empty" hidden>Bu klasör boş</div>
+
+      <!-- Tıklayınca dosya seçtiren / sürükle-bırak alanı -->
+      <div id="dropzone" class="dropzone" title="Dosya yüklemek için tıklayın veya sürükleyin">
+        <div class="dz-icon">⬆️</div>
+        <div class="dz-text"><b>Dosya yüklemek için tıklayın</b><br><span>ya da dosyaları buraya sürükleyip bırakın</span></div>
+      </div>
+
+      <div id="drop-hint" class="drop-hint" hidden>Dosyaları buraya bırakın</div>
+    </div>
+
+    <div class="statusbar" id="statusbar"></div>
+    </div>
+  </div>
+
+  <!-- Dosya düzenleyici -->
+  <div id="editor" class="editor-overlay" hidden>
+    <div class="editor-box">
+      <div class="editor-head">
+        <span class="editor-title" id="editor-title">dosya</span>
+        <span class="editor-status" id="editor-status"></span>
+        <div class="spacer"></div>
+        <button id="editor-save" class="ed-btn primary">💾 Kaydet</button>
+        <button id="editor-close" class="ed-btn">✕ Kapat</button>
+      </div>
+      <textarea id="editor-area" spellcheck="false" wrap="off"></textarea>
+    </div>
+  </div>
+
+  <!-- Docker yönetim paneli -->
+  <div id="docker-panel" class="editor-overlay" hidden>
+    <div class="docker-box">
+      <div class="editor-head">
+        <span class="editor-title">🐳 Docker Yönetimi</span>
+        <div class="docker-tabs">
+          <button class="dk-tab active" data-tab="containers">Konteynerler</button>
+          <button class="dk-tab" data-tab="images">Görüntüler</button>
+        </div>
+        <span class="editor-status" id="docker-status"></span>
+        <div class="spacer"></div>
+        <button id="docker-refresh" class="ed-btn">⟳ Yenile</button>
+        <button id="docker-close" class="ed-btn">✕ Kapat</button>
+      </div>
+      <div class="docker-body" id="docker-body"></div>
+    </div>
+  </div>
+
+  <!-- Docker log görüntüleyici -->
+  <div id="docker-logs" class="editor-overlay" hidden>
+    <div class="editor-box">
+      <div class="editor-head">
+        <span class="editor-title" id="logs-title">Loglar</span>
+        <div class="spacer"></div>
+        <button id="logs-refresh" class="ed-btn">⟳ Yenile</button>
+        <button id="logs-close" class="ed-btn">✕ Kapat</button>
+      </div>
+      <pre id="logs-area" class="logs-area"></pre>
+    </div>
+  </div>
+
+  <!-- Sağ tık menüsü -->
+  <div id="context-menu" class="context-menu" hidden></div>
+
+  <div id="loading" class="loading" hidden><div class="spinner"></div></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
