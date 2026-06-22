@@ -1158,3 +1158,49 @@ function prettyName(it) {
     : ext === "ZIP" ? "ZIP arşivi" : ext;
   return archTxt ? `${kind} — ${archTxt}` : kind;
 }
+
+// ---------- Masaüstü (Electron): güncelleme denetimi ----------
+(function initDesktop() {
+  if (!window.desktop || !window.desktop.isDesktop) return;
+  document.body.classList.add("is-desktop");
+
+  // Web'e özel "uygulamayı indir" bağlantısı masaüstünde gereksiz
+  const dl = $("open-downloads");
+  if (dl) dl.hidden = true;
+
+  const btn = $("btn-update");
+  if (btn) {
+    btn.hidden = false;
+    btn.addEventListener("click", () => runUpdateCheck(false));
+  }
+  // Açılışta sessizce denetle (varsa nokta ile işaretle)
+  setTimeout(() => runUpdateCheck(true), 2500);
+})();
+
+async function runUpdateCheck(silent) {
+  if (!window.desktop || !window.desktop.checkUpdate) return;
+  const btn = $("btn-update");
+  const dot = btn && btn.querySelector(".upd-dot");
+  if (btn && !silent) btn.classList.add("checking");
+  try {
+    const r = await window.desktop.checkUpdate();
+    if (!r || !r.ok) {
+      if (!silent) toast("Güncelleme denetlenemedi: " + ((r && r.error) || "ağ hatası"), true);
+      return;
+    }
+    if (r.hasUpdate) {
+      if (dot) dot.hidden = false;
+      if (btn) btn.classList.add("has-update");
+      const go = confirm(
+        `🎉 Yeni sürüm var: v${r.latest}\n(yüklü sürüm: v${r.current})\n\nİndirme sayfasını açmak ister misin?`
+      );
+      if (go) window.desktop.openExternal(r.url);
+    } else {
+      if (dot) dot.hidden = true;
+      if (btn) btn.classList.remove("has-update");
+      if (!silent) toast(`En güncel sürümdesin (v${r.current}).`);
+    }
+  } finally {
+    if (btn) btn.classList.remove("checking");
+  }
+}

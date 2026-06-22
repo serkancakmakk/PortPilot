@@ -1,33 +1,90 @@
 name: Build & Release
 
-# Commit mesajında [release] geçen her push'ta tetiklenir.
-# 3 işletim sisteminde derler ve sürüme (package.json "version") göre
-# bir TASLAK GitHub release oluşturup kurulum dosyalarını yükler.
+# Tetikleyiciler (commit mesajına göre):
+#   [release]  → yama sürümü artar  (1.0.0 → 1.0.1 → 1.0.2 …)
+#   [version]  → ana sürüm artar    (1.x.x → 2.0.0)
+#   [minor]    → ara sürüm artar    (1.0.x → 1.1.0)   (bonus)
+# Elle çalıştırmada (workflow_dispatch) artış türünü seçebilirsin.
 on:
   push:
     branches: ["**"]
-  workflow_dispatch: {} # GitHub arayüzünden elle de çalıştırılabilir
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Sürüm artışı türü"
+        type: choice
+        options: [patch, minor, major]
+        default: patch
 
 permissions:
-  contents: write # release oluşturup dosya yükleyebilmek için
+  contents: write
 
 jobs:
-  release:
-    # Sadece commit mesajı [release] içeriyorsa derle (elle tetiklemede de çalışır)
+  # 1) Sürümü artır, commit'le, etiketle (yalnızca bir kez çalışır)
+  version:
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      contains(github.event.head_commit.message, '[release]')
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest   # .dmg (Intel + Apple Silicon)
-          - os: windows-latest # .exe (kurulumlu + taşınabilir)
-          - os: ubuntu-latest  # .AppImage (x64 + arm64)
-    runs-on: ${{ matrix.os }}
+      contains(github.event.head_commit.message, '[release]') ||
+      contains(github.event.head_commit.message, '[version]') ||
+      contains(github.event.head_commit.message, '[minor]')
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
     steps:
       - name: Kaynağı al
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Node.js kur
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Artış türünü belirle
+        id: kind
+        run: |
+          MSG=$(git log -1 --pretty=%B)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            KIND="${{ github.event.inputs.bump }}"
+          elif echo "$MSG" | grep -q "\[version\]"; then
+            KIND="major"
+          elif echo "$MSG" | grep -q "\[minor\]"; then
+            KIND="minor"
+          else
+            KIND="patch"
+          fi
+          echo "Seçilen artış: $KIND"
+          echo "kind=$KIND" >> "$GITHUB_OUTPUT"
+
+      - name: Sürümü artır + commit + etiket
+        id: bump
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          NEW=$(npm version ${{ steps.kind.outputs.kind }} --no-git-tag-version)
+          echo "Yeni sürüm: $NEW"
+          # [skip ci] → bu otomatik commit yeni bir derlemeyi tetiklemesin (sonsuz döngü engeli)
+          git commit -am "chore: release $NEW [skip ci]"
+          git tag "$NEW"
+          git push
+          git push --tags
+          echo "tag=$NEW" >> "$GITHUB_OUTPUT"
+
+  # 2) Yeni etiketten 3 platformda derle ve release'e yükle
+  build:
+    needs: version
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Yeni sürümü (etiketi) al
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
 
       - name: Node.js kur
         uses: actions/setup-node@v4
@@ -41,6 +98,4 @@ jobs:
       - name: Derle ve release'e yükle
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # --publish always → electron-builder, "v{version}" adlı taslak
-        # release'i oluşturur/günceller ve bu platformun dosyalarını yükler.
         run: npx electron-builder --publish always
