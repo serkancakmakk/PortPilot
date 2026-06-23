@@ -1,0 +1,264 @@
+import { $, showLoading, toast } from "./dom.js";
+import { icon, iconFor } from "./icons.js";
+import { api } from "./api.js";
+import {
+  cwd, history, allItems, currentItems, fileFilter, showHidden,
+  selectedItem, viewMode, diskInfo,
+  setCwd, setHistory, setAllItems, setCurrentItems, setFileFilter,
+  setShowHidden, setSelectedItem, setDiskInfo, setViewMode, pushTransfer,
+} from "./state.js";
+
+// ---- Format yardımcıları ----
+export function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  const u = ["KB", "MB", "GB", "TB"];
+  let i = -1, n = bytes;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+  return n.toFixed(n < 10 ? 1 : 0) + " " + u[i];
+}
+
+export function fmtDate(ms) {
+  const d = new Date(ms);
+  if (isNaN(d)) return "";
+  return d.toLocaleString("tr-TR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function typeLabel(item) {
+  if (item.type === "dir") return "Klasör";
+  if (item.type === "link") return "Bağlantı";
+  const ext = item.name.split(".").pop().toUpperCase();
+  return ext === item.name.toUpperCase() ? "Dosya" : ext + " dosyası";
+}
+
+export function joinPath(base, name) {
+  return (base.endsWith("/") ? base : base + "/") + name;
+}
+
+// ---- Gezinme ----
+export async function navigate(target, pushHistory = true) {
+  showLoading(true);
+  try {
+    const data = await api("list?path=" + encodeURIComponent(target));
+    if (pushHistory && cwd !== data.path) setHistory([...history, cwd]);
+    setCwd(data.path);
+    renderBreadcrumb();
+    setAllItems(data.items);
+    if ($("file-search")) $("file-search").value = "";
+    setFileFilter("");
+    applyFileView();
+    const { highlightQuick } = await import("./sidebar.js");
+    highlightQuick();
+    $("btn-back").disabled = history.length === 0;
+    $("btn-up").disabled = cwd === "/";
+    fetchDisk(cwd);
+  } catch (err) {
+    toast(err.message, true);
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ---- Breadcrumb ----
+function renderBreadcrumb() {
+  const bc = $("breadcrumb");
+  bc.innerHTML = "";
+  const parts = cwd.split("/").filter(Boolean);
+  const root = document.createElement("span");
+  root.className = "crumb";
+  root.innerHTML = icon("server") + " /";
+  root.onclick = () => navigate("/");
+  bc.appendChild(root);
+  let acc = "";
+  parts.forEach((p) => {
+    acc += "/" + p;
+    const sep = document.createElement("span");
+    sep.className = "sep";
+    sep.innerHTML = icon("chevron-right", "sep-ico");
+    bc.appendChild(sep);
+    const c = document.createElement("span");
+    c.className = "crumb";
+    c.textContent = p;
+    const path = acc;
+    c.onclick = () => navigate(path);
+    bc.appendChild(c);
+  });
+}
+
+// ---- Disk ----
+export async function fetchDisk(target) {
+  setDiskInfo(null);
+  const { renderSideDisk } = await import("./sidebar.js");
+  renderSideDisk();
+  try {
+    setDiskInfo(await api("disk?path=" + encodeURIComponent(target)));
+  } catch (_) {
+    setDiskInfo(null);
+  }
+  renderSideDisk();
+}
+
+// ---- Dosya listesi ----
+export function applyFileView() {
+  let items = allItems;
+  if (!showHidden) items = items.filter((i) => !i.name.startsWith("."));
+  const q = fileFilter.trim().toLowerCase();
+  if (q) items = items.filter((i) => i.name.toLowerCase().includes(q));
+  renderList(items);
+}
+
+export function renderList(items) {
+  setCurrentItems(items);
+  setSelectedItem(null);
+  const grid = viewMode === "grid";
+  document.querySelector(".file-table").hidden = grid;
+  $("grid").hidden = !grid;
+  $("empty").hidden = items.length > 0;
+  if (grid) renderGrid(items); else renderTable(items);
+  syncCheckState();
+}
+
+function renderTable(items) {
+  const tbody = $("file-list");
+  tbody.innerHTML = "";
+  items.forEach((item) => {
+    const tr = document.createElement("tr");
+    tr.className = item.type;
+    tr.innerHTML = `
+      <td class="c-check"><input type="checkbox" class="row-check" /></td>
+      <td class="c-name"><span class="icon">${iconFor(item)}</span><span class="fname"></span></td>
+      <td class="c-date">${fmtDate(item.mtime)}</td>
+      <td class="c-type">${typeLabel(item)}</td>
+      <td class="c-size">${item.type === "file" ? fmtSize(item.size) : ""}</td>`;
+    tr.querySelector(".fname").textContent = item.name;
+    wireEntry(tr, item);
+    tbody.appendChild(tr);
+  });
+}
+
+function renderGrid(items) {
+  const g = $("grid");
+  g.innerHTML = "";
+  items.forEach((item) => {
+    const tile = document.createElement("div");
+    tile.className = "tile " + item.type;
+    tile.innerHTML = `
+      <input type="checkbox" class="row-check" />
+      <div class="tile-icon">${iconFor(item)}</div>
+      <div class="tile-name"></div>`;
+    tile.querySelector(".tile-name").textContent = item.name;
+    wireEntry(tile, item);
+    g.appendChild(tile);
+  });
+}
+
+function wireEntry(el, item) {
+  const cb = el.querySelector(".row-check");
+  cb._item = item;
+  cb.addEventListener("click", (e) => e.stopPropagation());
+  cb.addEventListener("change", () => { el.classList.toggle("checked", cb.checked); syncCheckState(); });
+  el.addEventListener("click", () => selectEl(el, item));
+  el.addEventListener("dblclick", () => openItem(item));
+  el.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    selectEl(el, item);
+    import("./context-menu.js").then((m) => m.showContextMenu(e, item));
+  });
+}
+
+export function selectEl(el, item) {
+  $("file-area").querySelectorAll(".selected").forEach((e) => e.classList.remove("selected"));
+  el.classList.add("selected");
+  setSelectedItem(item);
+  updateStatus();
+}
+
+export function checkedItems() {
+  return Array.from($("file-area").querySelectorAll(".row-check"))
+    .filter((cb) => cb.checked)
+    .map((cb) => cb._item);
+}
+
+export function syncCheckState() {
+  const rows = $("file-area").querySelectorAll(".row-check");
+  const checked = $("file-area").querySelectorAll(".row-check:checked");
+  const all = $("check-all");
+  if (all) {
+    all.checked = rows.length > 0 && checked.length === rows.length;
+    all.indeterminate = checked.length > 0 && checked.length < rows.length;
+  }
+  updateStatus();
+}
+
+function updateStatus() {
+  const dirs = currentItems.filter((i) => i.type === "dir").length;
+  const files = currentItems.filter((i) => i.type !== "dir").length;
+  const nChecked = $("file-area").querySelectorAll(".row-check:checked").length;
+  const sb = $("statusbar");
+  sb.innerHTML = "";
+  const left = document.createElement("span");
+  left.textContent = `${currentItems.length} öğe (${dirs} klasör, ${files} dosya)`;
+  sb.appendChild(left);
+  if (nChecked) {
+    const sel = document.createElement("span");
+    sel.className = "sel";
+    sel.textContent = `${nChecked} öğe seçili`;
+    sb.appendChild(sel);
+  }
+}
+
+// ---- Dosya açma / düzenleme ----
+const TEXT_EXT = new Set([
+  "txt","md","markdown","log","csv","tsv","ini","conf","cfg","cnf","config","env","properties",
+  "json","json5","xml","yml","yaml","toml","html","htm","css","scss","sass","less",
+  "js","mjs","cjs","ts","tsx","jsx","vue","svelte","py","rb","php","pl","lua",
+  "sh","bash","zsh","fish","c","h","cpp","hpp","cc","cs","java","kt","go","rs","swift",
+  "sql","r","dart","gitignore","dockerfile","makefile","gradle","bat","ps1","htaccess","service","nginx",
+]);
+const TEXT_NAMES = new Set([
+  ".bashrc",".bash_profile",".bash_history",".profile",".zshrc",".gitconfig",
+  ".vimrc",".npmrc",".env",".gitignore","dockerfile","makefile",".wget-hsts","authorized_keys","known_hosts",
+]);
+
+export function isEditable(name) {
+  const lower = name.toLowerCase();
+  if (TEXT_NAMES.has(lower)) return true;
+  const ext = lower.includes(".") ? lower.split(".").pop() : "";
+  return TEXT_EXT.has(ext);
+}
+
+export function openItem(item) {
+  const full = joinPath(cwd, item.name);
+  if (item.type === "dir" || item.type === "link") navigate(full);
+  else if (isEditable(item.name)) import("./editor.js").then((m) => m.editFile(item, full));
+  else downloadFile(full);
+}
+
+// ---- İndirme ----
+export function triggerDownload(url) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  try {
+    const q = new URL(url, location.origin).searchParams;
+    const p = q.get("path") || q.get("dir") || "";
+    const name = p ? (p.split("/").filter(Boolean).pop() || p) : "indirme";
+    pushTransfer({ type: "download", label: name, bytes: 0, time: Date.now() });
+  } catch (_) {}
+}
+
+export function downloadFile(fullPath) {
+  triggerDownload("/api/download?session=" + encodeURIComponent(session) + "&path=" + encodeURIComponent(fullPath));
+}
+
+export function downloadFolder(fullPath) {
+  toast("Klasör arşivleniyor, indirme birazdan başlayacak...");
+  triggerDownload("/api/download-folder?session=" + encodeURIComponent(session) + "&path=" + encodeURIComponent(fullPath));
+}
+
+export function downloadItem(item) {
+  const full = joinPath(cwd, item.name);
+  if (item.type === "dir") downloadFolder(full); else downloadFile(full);
+}

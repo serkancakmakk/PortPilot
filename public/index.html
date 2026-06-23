@@ -4,84 +4,127 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PortPilot</title>
-  <link rel="icon" type="image/svg+xml" href="logo.svg" />
-  <link rel="apple-touch-icon" href="icon.png" />
+  <link rel="icon" type="image/png" href="logo.png" />
+  <link rel="apple-touch-icon" href="logo.png" />
   <link rel="stylesheet" href="vendor/xterm.css" />
+  <link rel="stylesheet" href="vendor/bootstrap.min.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <!-- Bağlantı ekranı -->
   <div id="login" class="login-overlay">
-    <!-- Sol: masaüstü tarzı kayıtlı sunucu simgeleri -->
+
+    <!-- Sol: kayıtlı sunucular (sadece kayıt varsa görünür) -->
     <div id="saved-wrap" class="desktop-servers" hidden>
       <div class="ds-head"><span class="nav-ico-wrap" data-icon="server"></span> Kayıtlı Sunucular</div>
       <div id="saved-list" class="saved-list"></div>
       <div class="ds-hint">Bağlanmak için bir sunucuya tıkla</div>
     </div>
 
-    <!-- Sağ: bağlantı formu -->
+    <!-- Sağ: bağlantı formu kartı -->
     <form id="connect-form" class="login-card">
-      <button type="button" id="login-close" class="login-close" title="Kapat" hidden data-icon="x"></button>
-      <h1><img src="logo.svg" class="brand-img" alt="" /> PortPilot <span class="ver">v1</span></h1>
-      <p class="sub">Uzak sunucuya SSH/SFTP ile bağlan</p>
 
-      <label>Protokol
-        <select name="protocol" id="protocol">
+      <!-- Kapat butonu (başka sekmeye geçince belirir) -->
+      <button type="button" id="login-close" class="login-close" title="Kapat" hidden data-icon="x"></button>
+
+      <!-- Logo + başlık -->
+      <div class="login-head">
+        <img src="logo.png" alt="PortPilot" class="login-logo" />
+        <div>
+          <h1 class="login-title">PortPilot <span class="ver">v1</span></h1>
+          <p class="login-sub">Uzak sunucuya SSH/SFTP ile bağlan</p>
+        </div>
+      </div>
+
+      <!-- Protokol -->
+      <div class="mb-2">
+        <label class="form-label login-label">Protokol</label>
+        <select name="protocol" id="protocol" class="form-select">
           <option value="sftp">SFTP (SSH)</option>
           <option value="ftp">FTP</option>
           <option value="ftps">FTPS (FTP over TLS)</option>
         </select>
-      </label>
-
-      <div class="row">
-        <label>Sunucu adresi
-          <input name="host" placeholder="ornek.com veya 192.168.1.10" required autocomplete="off" />
-        </label>
-        <label class="port">Port
-          <input name="port" value="22" />
-        </label>
-      </div>
-      <label>Kullanıcı adı
-        <input name="username" placeholder="root" required autocomplete="off" />
-      </label>
-
-      <div class="tabs" id="auth-tabs">
-        <button type="button" class="tab active" data-auth="password">Parola</button>
-        <button type="button" class="tab" data-auth="key">SSH Anahtarı</button>
       </div>
 
-      <label data-pane="password">Parola
-        <input name="password" type="password" autocomplete="off" />
-      </label>
-      <div data-pane="key" hidden>
-        <label>Özel anahtar (PEM içeriği)
-          <textarea name="privateKey" rows="4" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
-        </label>
-        <label>Anahtar parolası (opsiyonel)
-          <input name="passphrase" type="password" autocomplete="off" />
-        </label>
-      </div>
-
-      <div class="save-row">
-        <label class="save-check">
-          <input type="checkbox" id="save-server" />
-          <span>Bu sunucuyu kaydet</span>
-        </label>
-        <div class="save-fields">
-          <input type="text" id="save-name" placeholder="Kayıt adı (opsiyonel)" autocomplete="off" />
-          <input type="text" id="save-group" placeholder="Grup (opsiyonel)" autocomplete="off" />
+      <!-- Host + Port -->
+      <div class="row g-2 mb-2">
+        <div class="col-8">
+          <label class="form-label login-label">Sunucu adresi</label>
+          <input name="host" class="form-control" placeholder="ornek.com veya 192.168.1.10" required autocomplete="off" />
+        </div>
+        <div class="col-4">
+          <label class="form-label login-label">Port</label>
+          <input name="port" class="form-control" value="22" />
         </div>
       </div>
-      <label class="save-pass-row" id="save-pass-row" hidden>
-        <input type="checkbox" id="save-pass" />
-        <span>Parolayı/anahtarı da bu cihazda sakla (kolay giriş için)</span>
-      </label>
 
-      <button type="submit" class="connect-btn">Bağlan</button>
-      <div id="login-error" class="error"></div>
-      <button type="button" id="import-fz" class="dl-link" title="FileZilla site yöneticisini (sitemanager.xml) içe aktar">📥 FileZilla'dan içe aktar (sitemanager.xml)</button>
-      <input type="file" id="fz-file" accept=".xml,text/xml" hidden />
-      <button type="button" id="open-downloads" class="dl-link"><span class="nav-ico-wrap" data-icon="monitor"></span> Masaüstü uygulamasını indir (Mac · Windows · Linux)</button>
+      <!-- Kullanıcı adı -->
+      <div class="mb-2">
+        <label class="form-label login-label">Kullanıcı adı</label>
+        <input name="username" class="form-control" placeholder="root" required autocomplete="off" />
+      </div>
+
+      <!-- Auth sekmeleri -->
+      <div class="auth-tabs" id="auth-tabs">
+        <button type="button" class="auth-tab" data-auth="password" aria-selected="true">Parola</button>
+        <button type="button" class="auth-tab" data-auth="key" aria-selected="false">SSH Anahtarı</button>
+      </div>
+
+      <!-- Parola -->
+      <div class="mb-2" data-pane="password">
+        <label class="form-label login-label">Parola</label>
+        <input name="password" type="password" class="form-control" autocomplete="off" />
+      </div>
+
+      <!-- SSH Anahtarı -->
+      <div data-pane="key" hidden>
+        <div class="mb-2">
+          <label class="form-label login-label">Özel anahtar (PEM içeriği)</label>
+          <textarea name="privateKey" rows="4" class="form-control font-monospace" style="resize:none"
+                    placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+        </div>
+        <div class="mb-2">
+          <label class="form-label login-label">Anahtar parolası (opsiyonel)</label>
+          <input name="passphrase" type="password" class="form-control" autocomplete="off" />
+        </div>
+      </div>
+
+      <!-- Kaydet seçenekleri -->
+      <div class="form-check mb-2">
+        <input type="checkbox" id="save-server" class="form-check-input" />
+        <label class="form-check-label" for="save-server">Bu sunucuyu kaydet</label>
+      </div>
+      <div class="row g-2 mb-2">
+        <div class="col">
+          <input type="text" id="save-name" class="form-control form-control-sm" placeholder="Kayıt adı (opsiyonel)" autocomplete="off" />
+        </div>
+        <div class="col">
+          <input type="text" id="save-group" class="form-control form-control-sm" placeholder="Grup (opsiyonel)" autocomplete="off" />
+        </div>
+      </div>
+
+      <div class="form-check mb-2" id="save-pass-row" hidden>
+        <input type="checkbox" id="save-pass" class="form-check-input" />
+        <label class="form-check-label small text-muted" for="save-pass">Parolayı/anahtarı da bu cihazda sakla (kolay giriş için)</label>
+      </div>
+
+      <!-- Bağlan -->
+      <button type="submit" id="connect-btn" class="btn btn-connect w-100">Bağlan</button>
+
+      <!-- Hata -->
+      <div id="login-error" class="login-error"></div>
+
+      <!-- Alt bağlantılar -->
+      <div class="login-foot">
+        <button type="button" id="import-fz" class="login-link"
+                title="FileZilla site yöneticisini (sitemanager.xml) içe aktar">
+          📥 FileZilla'dan içe aktar (sitemanager.xml)
+        </button>
+        <input type="file" id="fz-file" accept=".xml,text/xml" hidden />
+        <button type="button" id="open-downloads" class="login-link">
+          <span class="nav-ico-wrap" data-icon="monitor"></span> Masaüstü uygulamasını indir (Mac · Windows · Linux)
+        </button>
+      </div>
     </form>
   </div>
 
@@ -101,12 +144,18 @@
   <div id="explorer" hidden>
     <!-- Sol kenar çubuğu -->
     <aside class="sidebar">
-      <div class="brand"><img src="logo.svg" class="brand-img sm" alt="" /> PortPilot <span class="ver">v1</span></div>
+      <div class="brand"><img src="logo.png" class="brand-img sm" alt="" /> PortPilot <span class="ver">v1</span></div>
       <div class="side-label">Hızlı Erişim</div>
       <nav class="quick" id="quick-links"></nav>
 
+      <div id="favorites-wrap" hidden>
+        <div class="side-label" style="margin-top:14px">Sık Kullanılanlar</div>
+        <nav class="quick" id="favorites"></nav>
+      </div>
+
       <div class="side-label" style="margin-top:14px">Araçlar</div>
       <nav class="quick">
+        <a id="btn-dashboard"><span class="q-ico" data-icon="gauge"></span> Sunucu Paneli</a>
         <a id="btn-terminal"><span class="q-ico" data-icon="terminal"></span> Sunucu Terminali</a>
         <a id="btn-docker"><span class="q-ico" data-icon="container"></span> Docker Yönetimi</a>
         <a id="btn-update" hidden><span class="q-ico" data-icon="refresh"></span> Güncellemeleri Denetle<span class="upd-dot" hidden></span></a>
@@ -116,28 +165,44 @@
       <button id="btn-disconnect" class="side-disconnect"><span class="nav-ico-wrap" data-icon="logout"></span> Bağlantıyı Kes</button>
     </aside>
 
+    <!-- Küçük ekranda sidebar açıkken arka plan -->
+    <div id="sidebar-backdrop" class="sidebar-backdrop" hidden></div>
+
     <!-- Ana bölüm -->
     <div class="main">
     <!-- Bağlı sunucular: sekmeler -->
     <div class="conn-tabs" id="conn-tabs"></div>
-    <div class="toolbar">
-      <div class="nav-group">
-        <button id="btn-back" title="Geri" data-icon="arrow-left"></button>
-        <button id="btn-up" title="Üst klasör" data-icon="arrow-up"></button>
-        <button id="btn-refresh" title="Yenile" data-icon="refresh"></button>
+    <div class="toolbar d-flex flex-wrap align-items-center gap-2">
+      <button id="btn-sidebar" class="btn d-lg-none" title="Menü" data-icon="list"></button>
+      <div class="nav-group" role="group">
+        <button id="btn-back" class="btn" title="Geri" data-icon="arrow-left"></button>
+        <button id="btn-up" class="btn" title="Üst klasör" data-icon="arrow-up"></button>
+        <button id="btn-refresh" class="btn" title="Yenile" data-icon="refresh"></button>
       </div>
+      <button id="btn-fav" class="btn tbtn-star" title="Bu klasörü sık kullanılanlara ekle"><span class="nav-ico-wrap" data-icon="star"></span></button>
       <div class="breadcrumb" id="breadcrumb"></div>
-      <input type="search" id="file-search" class="file-search" placeholder="Bu klasörde ara…" autocomplete="off" />
-      <div class="spacer"></div>
-      <button id="btn-hidden" class="tbtn" title="Gizli dosyaları (.ile başlayan) göster/gizle"><span class="nav-ico-wrap" data-icon="eye"></span> Gizli</button>
-      <button id="btn-view" class="tbtn" title="Görünümü değiştir (simge / liste)"><span class="nav-ico-wrap" data-icon="grid"></span> Görünüm</button>
-      <button id="btn-newfolder" class="tbtn"><span class="nav-ico-wrap" data-icon="folder-plus"></span> Yeni Klasör</button>
-      <button id="btn-download" class="tbtn" title="Seçili dosya/klasörü bilgisayarına indir"><span class="nav-ico-wrap" data-icon="download"></span> İndir</button>
-      <button id="btn-upload" class="tbtn primary"><span class="nav-ico-wrap" data-icon="upload"></span> Yükle</button>
-      <button id="btn-upload-folder" class="tbtn" title="Tüm klasörü (alt klasörlerle) yükle"><span class="nav-ico-wrap" data-icon="folder-plus"></span> Klasör Yükle</button>
+      <input type="search" id="file-search" class="form-control form-control-sm file-search" placeholder="Bu klasörde ara…" autocomplete="off" />
+      <button id="btn-hidden" class="btn btn-sm tbtn" title="Gizli dosyaları (.ile başlayan) göster/gizle"><span class="nav-ico-wrap" data-icon="eye"></span> <span class="btn-label">Gizli</span></button>
+      <button id="btn-view" class="btn btn-sm tbtn" title="Görünümü değiştir (simge / liste)"><span class="nav-ico-wrap" data-icon="grid"></span> <span class="btn-label">Görünüm</span></button>
+      <button id="btn-newfolder" class="btn btn-sm tbtn" title="Yeni klasör oluştur"><span class="nav-ico-wrap" data-icon="folder-plus"></span> <span class="btn-label">Yeni Klasör</span></button>
+      <button id="btn-download" class="btn btn-sm tbtn" title="Seçili dosya/klasörü bilgisayarına indir"><span class="nav-ico-wrap" data-icon="download"></span> <span class="btn-label">İndir</span></button>
+      <button id="btn-upload" class="btn btn-sm tbtn primary" title="Dosya yükle"><span class="nav-ico-wrap" data-icon="upload"></span> <span class="btn-label">Yükle</span></button>
+      <button id="btn-upload-folder" class="btn btn-sm tbtn" title="Tüm klasörü (alt klasörlerle) yükle"><span class="nav-ico-wrap" data-icon="folder-plus"></span> <span class="btn-label">Klasör Yükle</span></button>
       <input type="file" id="file-input" multiple hidden />
       <input type="file" id="folder-input" webkitdirectory directory multiple hidden />
       <span class="conn-info" id="conn-info"></span>
+    </div>
+
+    <!-- Sunucu paneli (açılış sayfası — modal değil, ana bölümde) -->
+    <div id="dash-view" class="dash-view" hidden>
+      <div class="editor-head">
+        <span class="editor-title"><span class="nav-ico-wrap" data-icon="gauge"></span> Sunucu Paneli</span>
+        <span class="editor-status" id="dash-status"></span>
+        <div class="spacer"></div>
+        <button id="dash-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> Yenile</button>
+        <button id="dash-files" class="ed-btn primary"><span class="nav-ico-wrap" data-icon="folder"></span> Dosyalar</button>
+      </div>
+      <div class="dash-body" id="dash-body"></div>
     </div>
 
     <div class="file-area" id="file-area">
@@ -246,6 +311,9 @@
         <div class="uo-group">
           <div class="uo-group-title">Hedefte aynı ad varsa</div>
           <label class="uo-opt"><input type="radio" name="uo-conflict" value="overwrite" checked> <span>Üzerine yaz</span></label>
+          <label class="uo-opt"><input type="radio" name="uo-conflict" value="overwrite_newer"> <span>Kaynak daha yeniyse üzerine yaz</span></label>
+          <label class="uo-opt"><input type="radio" name="uo-conflict" value="overwrite_size"> <span>Boyut farklıysa üzerine yaz</span></label>
+          <label class="uo-opt"><input type="radio" name="uo-conflict" value="overwrite_size_newer"> <span>Boyut farklı veya kaynak daha yeniyse üzerine yaz</span></label>
           <label class="uo-opt"><input type="radio" name="uo-conflict" value="skip"> <span>Atla (mevcut dosyayı koru)</span></label>
           <label class="uo-opt"><input type="radio" name="uo-conflict" value="rename"> <span>Her ikisini tut (yeni dosyayı yeniden adlandır)</span></label>
         </div>
@@ -276,12 +344,15 @@
 
   <!-- Yükleme ilerleme çubuğu -->
   <div id="upload-progress" class="upload-progress" hidden>
-    <div class="upload-progress-label" id="upload-progress-label">Yükleniyor…</div>
+    <div class="upload-progress-top">
+      <div class="upload-progress-label" id="upload-progress-label">Yükleniyor…</div>
+      <button type="button" id="upload-cancel" class="upload-cancel" title="Yüklemeyi iptal et">İptal</button>
+    </div>
     <div class="upload-progress-track"><div class="upload-progress-bar" id="upload-progress-bar"></div></div>
   </div>
 
   <script src="vendor/xterm.js"></script>
   <script src="vendor/xterm-addon-fit.js"></script>
-  <script src="app.js"></script>
+  <script type="module" src="js/main.js"></script>
 </body>
 </html>
