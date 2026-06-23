@@ -860,7 +860,16 @@ async function loadDocker() {
     if (dockerTab === "containers") {
       const data = await api("docker/ps");
       if (!data.available) return showDockerUnavailable(data.error);
-      renderContainers(data.containers);
+      // Canlı CPU/RAM kullanımını paralel çek (hata olursa konteynerler yine listelenir)
+      const statsData = await api("docker/stats").catch(() => ({ available: false }));
+      const statsMap = {};
+      if (statsData.available) {
+        for (const st of statsData.stats || []) {
+          if (st.name) statsMap[st.name] = st;
+          if (st.id) { statsMap[st.id] = st; statsMap[st.id.slice(0, 12)] = st; }
+        }
+      }
+      renderContainers(data.containers, statsMap);
     } else {
       const data = await api("docker/images");
       if (!data.available) return showDockerUnavailable(data.error);
@@ -882,7 +891,7 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
-function renderContainers(list) {
+function renderContainers(list, statsMap = {}) {
   $("docker-status").textContent = `${list.length} konteyner`;
   if (!list.length) { $("docker-body").innerHTML = `<div class="dk-msg">Hiç konteyner yok.</div>`; return; }
   const rows = list.map((c) => {
@@ -890,6 +899,10 @@ function renderContainers(list) {
     const cls = st.includes("run") ? "running" : st.includes("paus") ? "paused" : "exited";
     const running = cls === "running";
     const paused = cls === "paused";
+    const stat = statsMap[c.name] || statsMap[c.id] || statsMap[(c.id || "").slice(0, 12)] || null;
+    const cpu = stat && stat.cpu ? stat.cpu : "—";
+    const mem = stat && stat.mem ? stat.mem : "—";
+    const memPerc = stat && stat.memPerc ? stat.memPerc : "";
     const a = [];
     if (!running && !paused) a.push(btn("start", c.id, "container", "▶ Başlat", "go"));
     if (running) a.push(btn(paused ? "unpause" : "pause", c.id, "container", paused ? "▶ Devam" : "⏸ Duraklat"));
@@ -900,12 +913,14 @@ function renderContainers(list) {
     return `<tr>
       <td><div class="dk-name">${escapeHtml(c.name)}</div><div class="dk-sub">${escapeHtml(c.image)}</div></td>
       <td><span class="dk-state ${cls}"><span class="dot"></span>${escapeHtml(c.status || c.state)}</span></td>
+      <td class="dk-metric">${escapeHtml(cpu)}</td>
+      <td class="dk-metric"><div>${escapeHtml(mem)}</div>${memPerc ? `<div class="dk-sub">${escapeHtml(memPerc)}</div>` : ""}</td>
       <td class="dk-sub">${escapeHtml(c.ports || "—")}</td>
       <td><div class="dk-actions">${a.join("")}</div></td>
     </tr>`;
   }).join("");
   $("docker-body").innerHTML =
-    `<table class="dk-table"><thead><tr><th>Konteyner</th><th>Durum</th><th>Portlar</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+    `<table class="dk-table"><thead><tr><th>Konteyner</th><th>Durum</th><th>CPU</th><th>RAM</th><th>Portlar</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function renderImages(list) {
@@ -1021,12 +1036,23 @@ if ($("folder-input")) {
   });
 }
 
+// Oturum boyunca hatırlanan aktarım tercihleri (FileZilla'daki "tekrar sorma" gibi)
+let uploadPrefs = null;
+
 // {file, rel} listesini paralel/akışlı olarak sunucuya yükler, ilerleme gösterir.
 async function uploadEntries(entries) {
   entries = (entries || []).filter((e) => e && e.file);
   if (!entries.length) { toast("Yüklenecek dosya bulunamadı.", true); return; }
+
+  // Aktarım seçeneklerini sor (çakışma davranışı + paralel sayısı)
+  const opts = uploadPrefs || await askUploadOptions(entries);
+  if (!opts) { $("file-input").value = ""; return; } // iptal
+  if (opts.remember) uploadPrefs = { conflict: opts.conflict, concurrency: opts.concurrency };
+
   const fd = new FormData();
   fd.append("path", cwd);
+  fd.append("conflict", opts.conflict);
+  fd.append("concurrency", String(opts.concurrency));
   for (const { file, rel } of entries) {
     fd.append("files", file);
     fd.append("paths", rel || file.name);
@@ -1036,8 +1062,12 @@ async function uploadEntries(entries) {
   try {
     const r = await uploadWithProgress(fd);
     setUploadProgress(null);
-    if (r.failed) toast(`${r.count} yüklendi, ${r.failed} başarısız: ${r.error}`, true);
-    else toast(r.count + " dosya yüklendi");
+    const parts = [];
+    if (r.count) parts.push(`${r.count} yüklendi`);
+    if (r.renamed) parts.push(`${r.renamed} yeniden adlandırıldı`);
+    if (r.skipped) parts.push(`${r.skipped} atlandı`);
+    if (r.failed) { parts.push(`${r.failed} başarısız`); toast(parts.join(", ") + (r.error ? ` — ${r.error}` : ""), true); }
+    else toast(parts.join(", ") || "Yükleme tamam");
     if (cwd === targetDir) navigate(cwd, false);
   } catch (e) {
     setUploadProgress(null);
@@ -1045,6 +1075,36 @@ async function uploadEntries(entries) {
   } finally {
     $("file-input").value = "";
   }
+}
+
+// Aktarım seçenekleri diyaloğu → {conflict, concurrency, remember} veya null (iptal)
+function askUploadOptions(entries) {
+  return new Promise((resolve) => {
+    const dlg = $("upload-options");
+    if (!dlg) return resolve({ conflict: "overwrite", concurrency: 4, remember: false });
+    const count = entries.length;
+    let bytes = 0;
+    for (const e of entries) bytes += (e.file && e.file.size) || 0;
+    $("uo-summary").textContent = `${count} dosya (${fmtSize(bytes)}) → ${cwd}`;
+    $("uo-remember").checked = false;
+    dlg.hidden = false;
+
+    const cleanup = () => {
+      dlg.hidden = true;
+      $("uo-start").removeEventListener("click", onStart);
+      $("uo-cancel").removeEventListener("click", onCancel);
+    };
+    const onStart = () => {
+      const conflict = (dlg.querySelector('input[name="uo-conflict"]:checked') || {}).value || "overwrite";
+      const concurrency = parseInt($("uo-concurrency").value, 10) || 4;
+      const remember = $("uo-remember").checked;
+      cleanup();
+      resolve({ conflict, concurrency, remember });
+    };
+    const onCancel = () => { cleanup(); resolve(null); };
+    $("uo-start").addEventListener("click", onStart);
+    $("uo-cancel").addEventListener("click", onCancel);
+  });
 }
 
 // XHR ile yükleme: yükleme ilerlemesini (%) raporlar.

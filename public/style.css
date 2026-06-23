@@ -1860,3 +1860,32 @@ tr.dir .fname {
   border-radius: 6px;
   transition: width .15s ease;
 }
+
+/* ---- Aktarım seçenekleri diyaloğu ---- */
+.uo-box { max-width: 480px; width: 92vw; }
+.uo-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 18px; }
+.uo-summary {
+  font-size: 13px;
+  color: var(--text, #e6e9ef);
+  background: rgba(255, 255, 255, .05);
+  padding: 10px 12px;
+  border-radius: 8px;
+  word-break: break-all;
+}
+.uo-group-title { font-size: 12px; opacity: .7; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .03em; }
+.uo-opt { display: flex; align-items: center; gap: 9px; padding: 7px 4px; cursor: pointer; font-size: 14px; }
+.uo-opt input, .uo-remember input { accent-color: #4f8cff; }
+.uo-select {
+  width: 100%;
+  padding: 9px 10px;
+  border-radius: 8px;
+  background: var(--panel, #1e2433);
+  color: var(--text, #e6e9ef);
+  border: 1px solid rgba(255, 255, 255, .15);
+  font-size: 14px;
+}
+.uo-remember { display: flex; align-items: center; gap: 9px; cursor: pointer; font-size: 13px; opacity: .9; }
+.uo-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 0 20px 18px; }
+
+/* ---- Docker CPU/RAM sütunları ---- */
+.dk-metric { font-variant-numeric: tabular-nums; font-size: 13px; white-space: nowrap; }

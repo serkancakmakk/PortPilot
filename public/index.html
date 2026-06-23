@@ -206,6 +206,41 @@
     </div>
   </div>
 
+  <!-- Aktarım seçenekleri (FileZilla tarzı) -->
+  <div id="upload-options" class="editor-overlay" hidden>
+    <div class="editor-box uo-box">
+      <div class="editor-head">
+        <span class="editor-title">Aktarım Seçenekleri</span>
+      </div>
+      <div class="uo-body">
+        <div class="uo-summary" id="uo-summary"></div>
+
+        <div class="uo-group">
+          <div class="uo-group-title">Hedefte aynı ad varsa</div>
+          <label class="uo-opt"><input type="radio" name="uo-conflict" value="overwrite" checked> <span>Üzerine yaz</span></label>
+          <label class="uo-opt"><input type="radio" name="uo-conflict" value="skip"> <span>Atla (mevcut dosyayı koru)</span></label>
+          <label class="uo-opt"><input type="radio" name="uo-conflict" value="rename"> <span>Her ikisini tut (yeni dosyayı yeniden adlandır)</span></label>
+        </div>
+
+        <div class="uo-group">
+          <div class="uo-group-title">Aynı anda yükleme sayısı</div>
+          <select id="uo-concurrency" class="uo-select">
+            <option value="1">1 (sıralı)</option>
+            <option value="2">2</option>
+            <option value="4" selected>4 (önerilen)</option>
+            <option value="8">8 (hızlı)</option>
+          </select>
+        </div>
+
+        <label class="uo-remember"><input type="checkbox" id="uo-remember"> <span>Bu oturumda tekrar sorma</span></label>
+      </div>
+      <div class="uo-foot">
+        <button id="uo-cancel" class="ed-btn">İptal</button>
+        <button id="uo-start" class="ed-btn primary"><span class="nav-ico-wrap" data-icon="upload"></span> Başlat</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Sağ tık menüsü -->
   <div id="context-menu" class="context-menu" hidden></div>
 
