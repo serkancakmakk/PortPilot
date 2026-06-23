@@ -207,9 +207,10 @@ jobs:
             done
             if ! ls *.pkg.tar.zst >/dev/null 2>&1; then echo "x86_64 pacman paketi yok"; exit 1; fi
             repo-add serkanzilla.db.tar.zst *.pkg.tar.zst
-            # pacman, Server/serkanzilla.db ve .files dosyalarını ister → sembolik link yerine gerçek kopya
-            cp -f serkanzilla.db.tar.zst serkanzilla.db
-            cp -f serkanzilla.files.tar.zst serkanzilla.files
+            # repo-add, serkanzilla.db/.files dosyalarını .tar.zst'ye SEMBOLİK LİNK olarak oluşturur.
+            # GitHub release'te link işe yaramaz → linki kaldırıp gerçek kopya koy.
+            cp -f --remove-destination serkanzilla.db.tar.zst serkanzilla.db
+            cp -f --remove-destination serkanzilla.files.tar.zst serkanzilla.files
           '
 
       - name: arch-repo release'ine yükle
