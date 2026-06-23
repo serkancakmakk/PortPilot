@@ -13,16 +13,24 @@
   <div id="login" class="login-overlay">
     <!-- Sol: masaüstü tarzı kayıtlı sunucu simgeleri -->
     <div id="saved-wrap" class="desktop-servers" hidden>
-      <div class="ds-head">🖥️ Kayıtlı Sunucular</div>
+      <div class="ds-head"><span class="nav-ico-wrap" data-icon="server"></span> Kayıtlı Sunucular</div>
       <div id="saved-list" class="saved-list"></div>
       <div class="ds-hint">Bağlanmak için bir sunucuya tıkla</div>
     </div>
 
     <!-- Sağ: bağlantı formu -->
     <form id="connect-form" class="login-card">
-      <button type="button" id="login-close" class="login-close" title="Kapat" hidden>✕</button>
+      <button type="button" id="login-close" class="login-close" title="Kapat" hidden data-icon="x"></button>
       <h1><img src="logo.svg" class="brand-img" alt="" /> Serkanzilla <span class="ver">v1</span></h1>
       <p class="sub">Uzak sunucuya SSH/SFTP ile bağlan</p>
+
+      <label>Protokol
+        <select name="protocol" id="protocol">
+          <option value="sftp">SFTP (SSH)</option>
+          <option value="ftp">FTP</option>
+          <option value="ftps">FTPS (FTP over TLS)</option>
+        </select>
+      </label>
 
       <div class="row">
         <label>Sunucu adresi
@@ -36,7 +44,7 @@
         <input name="username" placeholder="root" required autocomplete="off" />
       </label>
 
-      <div class="tabs">
+      <div class="tabs" id="auth-tabs">
         <button type="button" class="tab active" data-auth="password">Parola</button>
         <button type="button" class="tab" data-auth="key">SSH Anahtarı</button>
       </div>
@@ -65,7 +73,7 @@
 
       <button type="submit" class="connect-btn">Bağlan</button>
       <div id="login-error" class="error"></div>
-      <button type="button" id="open-downloads" class="dl-link">💻 Masaüstü uygulamasını indir (Mac · Windows · Linux)</button>
+      <button type="button" id="open-downloads" class="dl-link"><span class="nav-ico-wrap" data-icon="monitor"></span> Masaüstü uygulamasını indir (Mac · Windows · Linux)</button>
     </form>
   </div>
 
@@ -73,9 +81,9 @@
   <div id="downloads" class="editor-overlay" hidden>
     <div class="dl-box">
       <div class="editor-head">
-        <span class="editor-title">💻 Masaüstü Uygulaması</span>
+        <span class="editor-title"><span class="nav-ico-wrap" data-icon="monitor"></span> Masaüstü Uygulaması</span>
         <div class="spacer"></div>
-        <button id="downloads-close" class="ed-btn">✕ Kapat</button>
+        <button id="downloads-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
       </div>
       <div class="dl-body" id="dl-body"></div>
     </div>
@@ -91,12 +99,12 @@
 
       <div class="side-label" style="margin-top:14px">Araçlar</div>
       <nav class="quick">
-        <a id="btn-docker"><span class="q-ico">🐳</span> Docker Yönetimi</a>
-        <a id="btn-update" hidden><span class="q-ico">⟳</span> Güncellemeleri Denetle<span class="upd-dot" hidden></span></a>
+        <a id="btn-docker"><span class="q-ico" data-icon="container"></span> Docker Yönetimi</a>
+        <a id="btn-update" hidden><span class="q-ico" data-icon="refresh"></span> Güncellemeleri Denetle<span class="upd-dot" hidden></span></a>
       </nav>
 
       <div class="side-disk" id="side-disk"></div>
-      <button id="btn-disconnect" class="side-disconnect">⏏ Bağlantıyı Kes</button>
+      <button id="btn-disconnect" class="side-disconnect"><span class="nav-ico-wrap" data-icon="logout"></span> Bağlantıyı Kes</button>
     </aside>
 
     <!-- Ana bölüm -->
@@ -105,16 +113,16 @@
     <div class="conn-tabs" id="conn-tabs"></div>
     <div class="toolbar">
       <div class="nav-group">
-        <button id="btn-back" title="Geri">←</button>
-        <button id="btn-up" title="Üst klasör">↑</button>
-        <button id="btn-refresh" title="Yenile">⟳</button>
+        <button id="btn-back" title="Geri" data-icon="arrow-left"></button>
+        <button id="btn-up" title="Üst klasör" data-icon="arrow-up"></button>
+        <button id="btn-refresh" title="Yenile" data-icon="refresh"></button>
       </div>
       <div class="breadcrumb" id="breadcrumb"></div>
       <div class="spacer"></div>
-      <button id="btn-view" class="tbtn" title="Görünümü değiştir (simge / liste)">▦ Görünüm</button>
-      <button id="btn-newfolder" class="tbtn">📁 Yeni Klasör</button>
-      <button id="btn-download" class="tbtn" title="Seçili dosya/klasörü bilgisayarına indir">⬇ İndir</button>
-      <button id="btn-upload" class="tbtn primary">⬆ Yükle</button>
+      <button id="btn-view" class="tbtn" title="Görünümü değiştir (simge / liste)"><span class="nav-ico-wrap" data-icon="grid"></span> Görünüm</button>
+      <button id="btn-newfolder" class="tbtn"><span class="nav-ico-wrap" data-icon="folder-plus"></span> Yeni Klasör</button>
+      <button id="btn-download" class="tbtn" title="Seçili dosya/klasörü bilgisayarına indir"><span class="nav-ico-wrap" data-icon="download"></span> İndir</button>
+      <button id="btn-upload" class="tbtn primary"><span class="nav-ico-wrap" data-icon="upload"></span> Yükle</button>
       <input type="file" id="file-input" multiple hidden />
       <span class="conn-info" id="conn-info"></span>
     </div>
@@ -140,7 +148,7 @@
 
       <!-- Tıklayınca dosya seçtiren / sürükle-bırak alanı -->
       <div id="dropzone" class="dropzone" title="Dosya yüklemek için tıklayın veya sürükleyin">
-        <div class="dz-icon">⬆️</div>
+        <div class="dz-icon" data-icon="upload"></div>
         <div class="dz-text"><b>Dosya yüklemek için tıklayın</b><br><span>ya da dosyaları buraya sürükleyip bırakın</span></div>
       </div>
 
@@ -158,8 +166,8 @@
         <span class="editor-title" id="editor-title">dosya</span>
         <span class="editor-status" id="editor-status"></span>
         <div class="spacer"></div>
-        <button id="editor-save" class="ed-btn primary">💾 Kaydet</button>
-        <button id="editor-close" class="ed-btn">✕ Kapat</button>
+        <button id="editor-save" class="ed-btn primary"><span class="nav-ico-wrap" data-icon="save"></span> Kaydet</button>
+        <button id="editor-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
       </div>
       <textarea id="editor-area" spellcheck="false" wrap="off"></textarea>
     </div>
@@ -169,15 +177,15 @@
   <div id="docker-panel" class="editor-overlay" hidden>
     <div class="docker-box">
       <div class="editor-head">
-        <span class="editor-title">🐳 Docker Yönetimi</span>
+        <span class="editor-title"><span class="nav-ico-wrap" data-icon="container"></span> Docker Yönetimi</span>
         <div class="docker-tabs">
           <button class="dk-tab active" data-tab="containers">Konteynerler</button>
           <button class="dk-tab" data-tab="images">Görüntüler</button>
         </div>
         <span class="editor-status" id="docker-status"></span>
         <div class="spacer"></div>
-        <button id="docker-refresh" class="ed-btn">⟳ Yenile</button>
-        <button id="docker-close" class="ed-btn">✕ Kapat</button>
+        <button id="docker-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> Yenile</button>
+        <button id="docker-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
       </div>
       <div class="docker-body" id="docker-body"></div>
     </div>
@@ -189,8 +197,8 @@
       <div class="editor-head">
         <span class="editor-title" id="logs-title">Loglar</span>
         <div class="spacer"></div>
-        <button id="logs-refresh" class="ed-btn">⟳ Yenile</button>
-        <button id="logs-close" class="ed-btn">✕ Kapat</button>
+        <button id="logs-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> Yenile</button>
+        <button id="logs-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
       </div>
       <pre id="logs-area" class="logs-area"></pre>
     </div>

@@ -2,11 +2,12 @@
 
 ![version](https://img.shields.io/badge/sürüm-v1-2563eb) ![node](https://img.shields.io/badge/node-%3E%3D18-339933) ![license](https://img.shields.io/badge/lisans-MIT-555)
 
-Uzak sunuculara **SSH/SFTP** ile bağlanıp tarayıcıdan, tıpkı Windows Dosya Gezgini gibi
+Uzak sunuculara **SFTP, FTP veya FTPS** ile bağlanıp tarayıcıdan, tıpkı Windows Dosya Gezgini gibi
 dosya yönetimi yapmanı sağlayan, çapraz platform (macOS · Windows · Linux) bir web aracı.
 Üstüne bir de **Docker konteyner yönetim paneli** içerir.
 
-> Sunucuya SSH ile bağlanır, tüm işlemleri SFTP ve uzaktan komut (`df`, `tar`, `docker`) üzerinden yapar.
+> Bağlantı ekranından protokolü seç (SFTP / FTP / FTPS) ve istediğin portu gir.
+> Docker, disk kullanımı ve `.tar.gz` indirme gibi komut tabanlı özellikler yalnızca SFTP (SSH) bağlantılarında çalışır.
 > Hiçbir kimlik bilgisi internete gönderilmez; her şey kendi makinende çalışır.
 
 ---
@@ -47,7 +48,8 @@ Parola veya SSH anahtarı; kayıtlı sunucularla tek tıkla bağlanma.
 - **Görüntü (image)** listesi ve silme
 
 ### 🔐 Bağlantı
-- **Parola** veya **SSH özel anahtarı** (PEM) ile kimlik doğrulama
+- **SFTP / FTP / FTPS** protokol desteği (bağlantı ekranından seçilir)
+- **Parola** veya **SSH özel anahtarı** (PEM) ile kimlik doğrulama (anahtar yalnızca SFTP'de)
 - **Kayıtlı sunucular:** bağlantıları kaydet, tek tıkla geri bağlan (sunucuda `servers.json` dosyasında kalıcı)
 - Boşta kalan oturum 30 dk sonra otomatik kapanır
 

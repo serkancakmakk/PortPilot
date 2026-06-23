@@ -13,6 +13,45 @@ let activeConnId = null;
 
 const $ = (id) => document.getElementById(id);
 
+// ---- Tutarlı SVG ikon seti (emoji yerine: Mac/Windows/Linux'ta aynı görünür) ----
+// Lucide tarzı, stroke="currentColor" çizgi ikonlar; metin rengini miras alır.
+const ICONS = {
+  home: '<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .7-1.5l7-6a2 2 0 0 1 2.6 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  server: '<rect width="20" height="8" x="2" y="2" rx="2"/><rect width="20" height="8" x="2" y="14" rx="2"/><path d="M6 6h.01M6 18h.01"/>',
+  monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>',
+  box: '<path d="M21 8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>',
+  settings: '<path d="M20 7h-9"/><path d="M14 17H5"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/>',
+  folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  "folder-plus": '<path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>',
+  "arrow-left": '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  "arrow-up": '<path d="m5 12 7-7 7 7"/><path d="M12 19V5"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>',
+  save: '<path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/>',
+  "hard-drive": '<line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/>',
+  grid: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+  list: '<path d="M3 6h.01M3 12h.01M3 18h.01"/><path d="M8 6h13M8 12h13M8 18h13"/>',
+  container: '<path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.7 1.7 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.7 1.7 0 0 0 1.7 0l10.3-6c.5-.3.9-.9.9-1.5Z"/><path d="M10 21.9V14L2.1 9.1"/><path d="m10 14 11.9-6.9"/><path d="M14 19.8v-8.1"/><path d="M18 17.5V9.4"/>',
+  "chevron-right": '<path d="m9 18 6-6-6-6"/>',
+};
+
+// İkon adından inline SVG üretir (currentColor ile metin rengini alır)
+function icon(name, cls = "nav-ico") {
+  const p = ICONS[name] || "";
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+}
+
+// data-icon özniteliği olan tüm elemanları SVG ile doldurur
+function applyIcons(root = document) {
+  root.querySelectorAll("[data-icon]").forEach((el) => {
+    el.innerHTML = icon(el.dataset.icon, el.dataset.iconCls || "nav-ico");
+  });
+}
+document.addEventListener("DOMContentLoaded", () => applyIcons());
+
 // Globalleri aktif bağlantı nesnesine yaz (sekme değiştirmeden önce)
 function syncActiveConn() {
   const c = connections.find((x) => x.id === activeConnId);
@@ -38,9 +77,10 @@ function activateConn(id) {
 }
 
 function updateConnInfo(i) {
+  const proto = (i.protocol || "sftp").toUpperCase();
   $("conn-info").innerHTML =
-    `<span class="dot"></span>🖧 <b>${i.username}@${i.host}</b><span class="port">:${i.port}</span>`;
-  $("conn-info").title = `Bağlı: ${i.username}@${i.host}:${i.port}`;
+    `<span class="dot"></span><span class="conn-proto">${proto}</span> <b>${i.username}@${i.host}</b><span class="port">:${i.port}</span>`;
+  $("conn-info").title = `Bağlı: ${proto} · ${i.username}@${i.host}:${i.port}`;
 }
 
 // Sekme şeridini çiz
@@ -157,6 +197,26 @@ function toast(msg, isErr) {
 }
 
 // ---------- Bağlantı ekranı ----------
+// Protokol değişince varsayılan portu ayarla ve SSH anahtarı sekmesini yönet
+const DEFAULT_PORTS = { sftp: "22", ftp: "21", ftps: "21" };
+function applyProtocol(opts = {}) {
+  const proto = $("protocol").value;
+  const f = $("connect-form");
+  // FTP/FTPS'te SSH anahtarı yoktur → sekmeyi gizle ve parolaya zorla
+  const keyTab = document.querySelector('.tab[data-auth="key"]');
+  const isSsh = proto === "sftp";
+  keyTab.hidden = !isSsh;
+  if (!isSsh) document.querySelector('.tab[data-auth="password"]').click();
+  // Port alanı boş ya da bilinen bir varsayılansa, yeni protokolün portunu yaz
+  if (!opts.keepPort) {
+    const cur = f.port.value.trim();
+    if (!cur || Object.values(DEFAULT_PORTS).includes(cur)) {
+      f.port.value = DEFAULT_PORTS[proto];
+    }
+  }
+}
+$("protocol").addEventListener("change", () => applyProtocol());
+
 document.querySelectorAll(".tab").forEach((tab) => {
   tab.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
@@ -174,13 +234,15 @@ $("connect-form").addEventListener("submit", async (e) => {
   $("login-error").textContent = "";
   btn.disabled = true; btn.textContent = "Bağlanıyor...";
   try {
+    const protocol = f.protocol.value;
     const body = {
+      protocol,
       host: f.host.value.trim(),
-      port: f.port.value.trim() || 22,
+      port: f.port.value.trim() || (protocol === "sftp" ? 22 : 21),
       username: f.username.value.trim(),
       password: f.password.value,
-      privateKey: f.privateKey.value,
-      passphrase: f.passphrase.value,
+      privateKey: protocol === "sftp" ? f.privateKey.value : "",
+      passphrase: protocol === "sftp" ? f.passphrase.value : "",
     };
     let r;
     try {
@@ -204,7 +266,7 @@ $("connect-form").addEventListener("submit", async (e) => {
     const conn = {
       id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       session: data.session,
-      info: { host: i.host, username: i.username, port: i.port, name: savedName || null },
+      info: { host: i.host, username: i.username, port: i.port, protocol: i.protocol, name: savedName || null },
       cwd: home, homePath: home, history: [],
     };
     if (activeConnId) syncActiveConn();
@@ -256,6 +318,7 @@ function maybeSaveServer(body) {
   const server = {
     name,
     host: body.host, port: body.port, username: body.username,
+    protocol: body.protocol || "sftp",
     auth: isKey ? "key" : "password",
     // Kimlik bilgileri yalnızca kullanıcı isterse saklanır
     password: savePass && !isKey ? body.password : "",
@@ -286,7 +349,8 @@ async function renderSavedServers() {
     const el = document.createElement("button");
     el.type = "button";
     el.className = "srv-tile" + (online ? " online" : "");
-    el.title = `${s.username}@${s.host}:${s.port} • ${s.auth === "key" ? "SSH anahtarı" : "parola"}`;
+    const protoUp = (s.protocol || "sftp").toUpperCase();
+    el.title = `${protoUp} · ${s.username}@${s.host}:${s.port} • ${s.auth === "key" ? "SSH anahtarı" : "parola"}`;
     el.innerHTML = `
       <span class="srv-ico">${computerSVG()}</span>
       <span class="srv-text">
@@ -296,7 +360,7 @@ async function renderSavedServers() {
       <span class="srv-badge" title="${hasCreds ? "Kimlik bilgisi kayıtlı" : "Bağlanırken parola istenir"}">${hasCreds ? "🔓" : "🔒"}</span>
       <span class="srv-del" title="Kaydı sil">×</span>`;
     el.querySelector(".srv-name").textContent = s.name;
-    el.querySelector(".srv-host").textContent = `${s.username}@${s.host}:${s.port}`;
+    el.querySelector(".srv-host").textContent = `${protoUp} · ${s.username}@${s.host}:${s.port}`;
     el.addEventListener("click", () => selectServer(s));
     el.querySelector(".srv-del").addEventListener("click", async (e) => {
       e.stopPropagation();
@@ -323,14 +387,17 @@ function computerSVG() {
 // Kayıtlı sunucuyu forma doldur; kimlik bilgisi varsa direkt bağlan
 function selectServer(s) {
   const f = $("connect-form");
+  f.protocol.value = s.protocol || "sftp";
+  applyProtocol({ keepPort: true });
   f.host.value = s.host;
   f.port.value = s.port;
   f.username.value = s.username;
   f.password.value = s.password || "";
   f.privateKey.value = s.privateKey || "";
   f.passphrase.value = s.passphrase || "";
-  // Doğru kimlik sekmesini seç
-  document.querySelector(`.tab[data-auth="${s.auth}"]`).click();
+  // Doğru kimlik sekmesini seç (FTP'de yalnızca parola)
+  const auth = (s.protocol && s.protocol !== "sftp") ? "password" : s.auth;
+  document.querySelector(`.tab[data-auth="${auth}"]`).click();
   const hasCreds = !!(s.password || s.privateKey);
   if (hasCreds) {
     f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event("submit", { cancelable: true }));
@@ -365,11 +432,11 @@ async function navigate(target, pushHistory = true) {
 // ---------- Kenar çubuğu hızlı erişim ----------
 function renderQuickLinks() {
   const links = [
-    { icon: "🏠", label: "Ana Dizin", path: homePath },
-    { icon: "🖥️", label: "Kök (/)", path: "/" },
-    { icon: "📦", label: "/var", path: "/var" },
-    { icon: "⚙️", label: "/etc", path: "/etc" },
-    { icon: "🗂️", label: "/tmp", path: "/tmp" },
+    { icon: "home", label: "Ana Dizin", path: homePath },
+    { icon: "server", label: "Kök (/)", path: "/" },
+    { icon: "box", label: "/var", path: "/var" },
+    { icon: "settings", label: "/etc", path: "/etc" },
+    { icon: "folder", label: "/tmp", path: "/tmp" },
   ];
   // Ana dizin "/" ise tekrarı önle
   const seen = new Set();
@@ -380,7 +447,7 @@ function renderQuickLinks() {
     seen.add(l.path);
     const a = document.createElement("a");
     a.dataset.path = l.path;
-    a.innerHTML = `<span class="q-ico">${l.icon}</span> ${l.label}`;
+    a.innerHTML = `<span class="q-ico">${icon(l.icon)}</span> ${l.label}`;
     a.onclick = () => navigate(l.path);
     nav.appendChild(a);
   });
@@ -397,13 +464,13 @@ function renderBreadcrumb() {
   bc.innerHTML = "";
   const parts = cwd.split("/").filter(Boolean);
   const root = document.createElement("span");
-  root.className = "crumb"; root.textContent = "🖥 /";
+  root.className = "crumb"; root.innerHTML = icon("server") + " /";
   root.onclick = () => navigate("/");
   bc.appendChild(root);
   let acc = "";
   parts.forEach((p) => {
     acc += "/" + p;
-    const sep = document.createElement("span"); sep.className = "sep"; sep.textContent = "›";
+    const sep = document.createElement("span"); sep.className = "sep"; sep.innerHTML = icon("chevron-right", "sep-ico");
     bc.appendChild(sep);
     const c = document.createElement("span");
     c.className = "crumb"; c.textContent = p;
@@ -608,7 +675,7 @@ function renderSideDisk() {
   const d = diskInfo;
   const cls = d.percent >= 90 ? "full" : d.percent >= 75 ? "warn" : "";
   box.innerHTML =
-    `<div class="sd-title">💾 Disk Kullanımı</div>` +
+    `<div class="sd-title">${icon("hard-drive")} Disk Kullanımı</div>` +
     `<div class="sd-bar"><div class="sd-fill ${cls}" style="width:${d.percent}%"></div></div>` +
     `<div class="sd-text">${fmtSize(d.used)} / ${fmtSize(d.total)} • %${d.percent} dolu<br>${fmtSize(d.avail)} boş</div>`;
 }
@@ -806,7 +873,7 @@ async function loadDocker() {
 
 function showDockerUnavailable(err) {
   $("docker-body").innerHTML =
-    `<div class="dk-msg">🐳 Bu sunucuda Docker'a erişilemedi.<br><br>` +
+    `<div class="dk-msg">Bu sunucuda Docker'a erişilemedi.<br><br>` +
     `<code>docker</code> kurulu ve çalışıyor olmalı; kullanıcının docker yetkisi olmalı.` +
     (err ? `<br><br><span class="dk-sub">${escapeHtml(err)}</span>` : "") + `</div>`;
 }
@@ -911,7 +978,9 @@ $("check-all").addEventListener("change", (e) => {
 
 // Görünüm değiştir (simge ızgarası / liste)
 function applyViewButton() {
-  $("btn-view").textContent = viewMode === "grid" ? "≣ Liste" : "▦ Simge";
+  $("btn-view").innerHTML = viewMode === "grid"
+    ? `<span class="nav-ico-wrap">${icon("list")}</span> Liste`
+    : `<span class="nav-ico-wrap">${icon("grid")}</span> Simge`;
 }
 $("btn-view").addEventListener("click", () => {
   viewMode = viewMode === "grid" ? "list" : "grid";

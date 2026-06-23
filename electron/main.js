@@ -6,6 +6,11 @@
 
 const { app, BrowserWindow, Menu, shell, ipcMain } = require("electron");
 const path = require("path");
+
+// Kayıtlı sunucular paket içindeki salt-okunur asar'a değil, yazılabilir
+// kullanıcı veri klasörüne kaydedilsin. (server.js require edilmeden ÖNCE ayarla.)
+process.env.SERKANZILLA_DATA_DIR = app.getPath("userData");
+
 const { startServer } = require("../server.js");
 
 let mainWindow = null;
@@ -77,6 +82,20 @@ async function createWindow() {
 
   mainWindow.loadURL(`http://localhost:${port}`);
 
+  // Sağ tık menüsü: kes/kopyala/yapıştır/tümünü seç (her platformda çalışır)
+  mainWindow.webContents.on("context-menu", (_e, params) => {
+    const { editFlags, isEditable, selectionText } = params;
+    const items = [];
+    if (isEditable || selectionText) {
+      items.push({ role: "cut", enabled: isEditable && editFlags.canCut });
+      items.push({ role: "copy", enabled: editFlags.canCopy });
+      if (isEditable) items.push({ role: "paste", enabled: editFlags.canPaste });
+      items.push({ type: "separator" });
+      items.push({ role: "selectAll" });
+    }
+    if (items.length) Menu.buildFromTemplate(items).popup({ window: mainWindow });
+  });
+
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
@@ -88,7 +107,18 @@ function buildMenu() {
   const template = [
     ...(isMac ? [{ role: "appMenu" }] : []),
     { role: "fileMenu" },
-    { role: "editMenu" },
+    {
+      label: "Düzen",
+      submenu: [
+        { label: "Geri Al", accelerator: "CmdOrCtrl+Z", role: "undo" },
+        { label: "Yinele", accelerator: isMac ? "Shift+CmdOrCtrl+Z" : "CmdOrCtrl+Y", role: "redo" },
+        { type: "separator" },
+        { label: "Kes", accelerator: "CmdOrCtrl+X", role: "cut" },
+        { label: "Kopyala", accelerator: "CmdOrCtrl+C", role: "copy" },
+        { label: "Yapıştır", accelerator: "CmdOrCtrl+V", role: "paste" },
+        { label: "Tümünü Seç", accelerator: "CmdOrCtrl+A", role: "selectAll" },
+      ],
+    },
     { role: "viewMenu" },
     { role: "windowMenu" },
   ];

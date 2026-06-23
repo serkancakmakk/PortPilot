@@ -9,6 +9,93 @@
   display: none !important;
 }
 
+/* ====== Tutarlı SVG ikonlar (emoji yerine; her OS'ta aynı görünür) ====== */
+.nav-ico {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* Metinle birlikte gelen ikonları hizala (buton/başlık içi) */
+.nav-ico-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: -3px;
+}
+
+/* İkon + metin içeren butonları flex ile ortala */
+.tbtn,
+.ed-btn,
+.dl-link,
+.side-disconnect,
+.dk-btn,
+.editor-title,
+.ds-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+/* Yalnızca ikon içeren araç çubuğu butonları (geri/üst/yenile) */
+.toolbar button[data-icon] {
+  display: inline-grid;
+  place-items: center;
+  line-height: 0;
+}
+
+.toolbar button[data-icon] .nav-ico,
+.dropzone .dz-icon .nav-ico {
+  width: 19px;
+  height: 19px;
+}
+
+.dropzone .dz-icon {
+  display: grid;
+  place-items: center;
+}
+
+.dropzone .dz-icon .nav-ico {
+  width: 30px;
+  height: 30px;
+}
+
+.login-close[data-icon] {
+  display: grid;
+  place-items: center;
+}
+
+.login-close .nav-ico {
+  width: 15px;
+  height: 15px;
+}
+
+/* Kenar çubuğu hızlı erişim ikonları */
+.quick a .q-ico {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.quick a .q-ico .nav-ico {
+  width: 18px;
+  height: 18px;
+}
+
+/* Breadcrumb ikon ve ayraç */
+.breadcrumb .crumb .nav-ico {
+  width: 16px;
+  height: 16px;
+  vertical-align: -3px;
+}
+
+.breadcrumb .sep .sep-ico {
+  width: 15px;
+  height: 15px;
+  display: block;
+}
+
 :root {
   --bg: #eef1f6;
   --panel: #ffffff;
@@ -167,7 +254,8 @@ body {
 }
 
 .login-card input,
-.login-card textarea {
+.login-card textarea,
+.login-card select {
   padding: 11px 13px;
   border: 1.5px solid var(--border);
   border-radius: 10px;
@@ -178,8 +266,19 @@ body {
   transition: border-color .15s, box-shadow .15s, background .15s;
 }
 
+.login-card select {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7585' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
 .login-card input:focus,
-.login-card textarea:focus {
+.login-card textarea:focus,
+.login-card select:focus {
   outline: none;
   border-color: var(--accent);
   background: #fff;
@@ -660,6 +759,16 @@ body {
 
 .conn-info b {
   font-weight: 600;
+}
+
+.conn-info .conn-proto {
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: .4px;
+  color: #067647;
+  background: #d1fadf;
+  padding: 1px 6px;
+  border-radius: 6px;
 }
 
 .conn-info .port {

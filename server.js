@@ -3,7 +3,7 @@ const multer = require("multer");
 const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
-const { Client } = require("ssh2");
+const { connectRemote } = require("./lib/remote-fs");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -13,7 +13,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// token -> { conn, sftp, info, lastUsed }
+// token -> { fs, info, lastUsed }  (fs: protokolden bağımsız uzak dosya sistemi)
 const sessions = new Map();
 const SESSION_TTL = 30 * 60 * 1000; // 30 dk boşta kalma
 
@@ -22,7 +22,7 @@ setInterval(() => {
   const now = Date.now();
   for (const [token, s] of sessions) {
     if (now - s.lastUsed > SESSION_TTL) {
-      try { s.conn.end(); } catch (_) {}
+      try { s.fs.end(); } catch (_) {}
       sessions.delete(token);
     }
   }
@@ -48,56 +48,31 @@ function resolveRemote(base, target) {
 }
 
 // ---- Bağlantı ----
-app.post("/api/connect", (req, res) => {
+const PROTOCOLS = { sftp: 22, ftp: 21, ftps: 21 };
+app.post("/api/connect", async (req, res) => {
   const { host, port, username, password, privateKey, passphrase } = req.body || {};
+  const protocol = (req.body && req.body.protocol || "sftp").toLowerCase();
   if (!host || !username) {
     return res.status(400).json({ error: "Sunucu adresi ve kullanıcı adı zorunlu." });
   }
-
-  const conn = new Client();
-  let settled = false;
-  const fail = (msg) => {
-    if (settled) return;
-    settled = true;
-    try { conn.end(); } catch (_) {}
-    res.status(400).json({ error: msg });
-  };
-
-  conn.on("ready", () => {
-    conn.sftp((err, sftp) => {
-      if (err) return fail("SFTP başlatılamadı: " + err.message);
-      sftp.realpath(".", (e, home) => {
-        const token = crypto.randomBytes(24).toString("hex");
-        sessions.set(token, {
-          conn, sftp,
-          info: { host, port: port || 22, username },
-          lastUsed: Date.now(),
-        });
-        settled = true;
-        res.json({ session: token, home: e ? "/" : home, info: { host, username, port: Number(port) || 22 } });
-      });
-    });
-  });
-
-  conn.on("error", (err) => fail("Bağlantı hatası: " + err.message));
-
-  const cfg = {
-    host,
-    port: Number(port) || 22,
-    username,
-    readyTimeout: 20000,
-  };
-  if (privateKey && privateKey.trim()) {
-    cfg.privateKey = privateKey;
-    if (passphrase) cfg.passphrase = passphrase;
-  } else {
-    cfg.password = password || "";
+  if (!(protocol in PROTOCOLS)) {
+    return res.status(400).json({ error: "Geçersiz protokol." });
   }
+  const portNum = Number(port) || PROTOCOLS[protocol];
 
   try {
-    conn.connect(cfg);
+    const remoteFs = await connectRemote({ host, port: portNum, username, password, privateKey, passphrase, protocol });
+    let home = "/";
+    try { home = await remoteFs.realpath("."); } catch (_) { home = "/"; }
+    const token = crypto.randomBytes(24).toString("hex");
+    sessions.set(token, {
+      fs: remoteFs,
+      info: { host, port: portNum, username, protocol },
+      lastUsed: Date.now(),
+    });
+    res.json({ session: token, home: home || "/", info: { host, username, port: portNum, protocol } });
   } catch (e) {
-    fail("Bağlantı kurulamadı: " + e.message);
+    res.status(400).json({ error: e.message || "Bağlanılamadı." });
   }
 });
 
@@ -105,40 +80,30 @@ app.post("/api/disconnect", (req, res) => {
   const token = req.get("x-session");
   const s = token && sessions.get(token);
   if (s) {
-    try { s.conn.end(); } catch (_) {}
+    try { s.fs.end(); } catch (_) {}
     sessions.delete(token);
   }
   res.json({ ok: true });
 });
 
 // ---- Dizin listele ----
-app.get("/api/list", (req, res) => {
+app.get("/api/list", async (req, res) => {
   const s = getSession(req, res);
   if (!s) return;
   const dir = resolveRemote("/", req.query.path || "/");
-  s.sftp.readdir(dir, (err, list) => {
-    if (err) return res.status(400).json({ error: "Klasör okunamadı: " + err.message });
-    const items = list.map((it) => {
-      const attrs = it.attrs;
-      const isDir = (attrs.mode & 0o170000) === 0o040000;
-      const isLink = (attrs.mode & 0o170000) === 0o120000;
-      return {
-        name: it.filename,
-        type: isDir ? "dir" : isLink ? "link" : "file",
-        size: attrs.size,
-        mtime: attrs.mtime * 1000,
-        mode: attrs.mode & 0o777,
-      };
-    }).sort((a, b) => {
+  try {
+    const items = (await s.fs.list(dir)).sort((a, b) => {
       if ((a.type === "dir") !== (b.type === "dir")) return a.type === "dir" ? -1 : 1;
       return a.name.localeCompare(b.name, "tr");
     });
     res.json({ path: dir, items });
-  });
+  } catch (err) {
+    res.status(400).json({ error: "Klasör okunamadı: " + err.message });
+  }
 });
 
 // ---- İndir ----
-app.get("/api/download", (req, res) => {
+app.get("/api/download", async (req, res) => {
   const s = getSession(req, res);
   if (!s) return;
   const file = resolveRemote("/", req.query.path);
@@ -147,19 +112,22 @@ app.get("/api/download", (req, res) => {
     "Content-Disposition",
     `attachment; filename="${encodeURIComponent(path.posix.basename(file))}"`
   );
-  const stream = s.sftp.createReadStream(file);
-  stream.on("error", (err) => {
+  try {
+    await s.fs.downloadTo(res, file);
+  } catch (err) {
     if (!res.headersSent) res.status(400).json({ error: "İndirilemedi: " + err.message });
     else res.destroy();
-  });
-  stream.pipe(res);
+  }
 });
 
 function shQuote(p) { return "'" + String(p).replace(/'/g, "'\\''") + "'"; }
 
 // ---- Docker yönetimi ----
+// FTP/FTPS oturumlarında komut çalıştırma (SSH exec) yoktur
+function hasExec(s) { return !!(s.fs && s.fs.exec); }
 function dockerExec(s, cmd, cb) {
-  s.conn.exec(cmd, (err, stream) => {
+  if (!hasExec(s)) return cb(new Error("Bu protokolde (FTP) komut çalıştırılamaz."));
+  s.fs.exec.exec(cmd, (err, stream) => {
     if (err) return cb(err);
     let out = "", errout = "";
     stream.on("data", (d) => { out += d; });
@@ -250,12 +218,13 @@ app.get("/api/download-folder", (req, res) => {
   const s = getSession(req, res);
   if (!s) return;
   if (!req.query.path) return res.status(400).json({ error: "Klasör yolu gerekli." });
+  if (!hasExec(s)) return res.status(400).json({ error: "Klasör indirme yalnızca SFTP'de desteklenir. Tek tek dosya indirin." });
   const dir = resolveRemote("/", req.query.path);
   const parent = path.posix.dirname(dir);
   const base = path.posix.basename(dir) || "kok";
   res.setHeader("Content-Type", "application/gzip");
   res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(base)}.tar.gz"`);
-  s.conn.exec(`tar czf - -C ${shQuote(parent)} ${shQuote(base)}`, (err, stream) => {
+  s.fs.exec.exec(`tar czf - -C ${shQuote(parent)} ${shQuote(base)}`, (err, stream) => {
     if (err) {
       if (!res.headersSent) res.status(400).json({ error: "İndirilemedi: " + err.message });
       return;
@@ -276,10 +245,11 @@ app.get("/api/download-multi", (req, res) => {
   if (!Array.isArray(names)) names = [names];
   names = names.filter((n) => n && !n.includes("/")); // güvenlik
   if (!names.length) return res.status(400).json({ error: "Geçersiz seçim." });
+  if (!hasExec(s)) return res.status(400).json({ error: "Toplu indirme yalnızca SFTP'de desteklenir. Tek tek dosya indirin." });
   res.setHeader("Content-Type", "application/gzip");
   res.setHeader("Content-Disposition", `attachment; filename="secilenler.tar.gz"`);
   const args = names.map(shQuote).join(" ");
-  s.conn.exec(`tar czf - -C ${shQuote(dir)} ${args}`, (err, stream) => {
+  s.fs.exec.exec(`tar czf - -C ${shQuote(dir)} ${args}`, (err, stream) => {
     if (err) {
       if (!res.headersSent) res.status(400).json({ error: "İndirilemedi: " + err.message });
       return;
@@ -295,7 +265,8 @@ app.get("/api/disk", (req, res) => {
   const s = getSession(req, res);
   if (!s) return;
   const dir = resolveRemote("/", req.query.path || "/");
-  s.conn.exec("df -Pk " + shQuote(dir), (err, stream) => {
+  if (!hasExec(s)) return res.json({ available: false });
+  s.fs.exec.exec("df -Pk " + shQuote(dir), (err, stream) => {
     if (err) return res.json({ available: false });
     let out = "";
     stream.on("data", (d) => { out += d; });
@@ -319,142 +290,135 @@ app.get("/api/disk", (req, res) => {
 
 // ---- Dosya içeriğini oku (düzenleme için) ----
 const MAX_EDIT_SIZE = 5 * 1024 * 1024; // 5 MB
-app.get("/api/read", (req, res) => {
+app.get("/api/read", async (req, res) => {
   const s = getSession(req, res);
   if (!s) return;
   const file = resolveRemote("/", req.query.path);
   if (!req.query.path) return res.status(400).json({ error: "Dosya yolu gerekli." });
-  s.sftp.stat(file, (err, st) => {
-    if (err) return res.status(400).json({ error: "Dosya bulunamadı: " + err.message });
-    if (st.size > MAX_EDIT_SIZE) {
+  try {
+    let size = 0;
+    try { size = await s.fs.statSize(file); } catch (_) { size = 0; }
+    if (size > MAX_EDIT_SIZE) {
       return res.status(413).json({ error: "Dosya 5 MB'tan büyük, düzenleyici açamaz. İndirerek açın." });
     }
-    s.sftp.readFile(file, (e, buf) => {
-      if (e) return res.status(400).json({ error: "Okunamadı: " + e.message });
-      // İkili (binary) dosya mı? NUL baytı içeriyorsa metin olarak açma
-      const sample = buf.subarray(0, 8000);
-      if (sample.includes(0)) {
-        return res.status(415).json({ error: "Bu bir metin dosyası değil (ikili içerik). İndirerek açın." });
-      }
-      res.json({ path: file, content: buf.toString("utf8"), size: st.size });
-    });
-  });
+    const buf = await s.fs.readFile(file);
+    // İkili (binary) dosya mı? NUL baytı içeriyorsa metin olarak açma
+    const sample = buf.subarray(0, 8000);
+    if (sample.includes(0)) {
+      return res.status(415).json({ error: "Bu bir metin dosyası değil (ikili içerik). İndirerek açın." });
+    }
+    res.json({ path: file, content: buf.toString("utf8"), size: buf.length });
+  } catch (e) {
+    res.status(400).json({ error: "Okunamadı: " + e.message });
+  }
 });
 
 // ---- Dosya içeriğini kaydet ----
-app.post("/api/save", (req, res) => {
+app.post("/api/save", async (req, res) => {
   const s = getSession(req, res);
   if (!s) return;
   const file = resolveRemote("/", req.body.path);
   if (!req.body.path) return res.status(400).json({ error: "Dosya yolu gerekli." });
   if (typeof req.body.content !== "string") return res.status(400).json({ error: "İçerik geçersiz." });
-  s.sftp.writeFile(file, Buffer.from(req.body.content, "utf8"), (err) => {
-    if (err) return res.status(400).json({ error: "Kaydedilemedi: " + err.message });
+  try {
+    await s.fs.writeFile(file, Buffer.from(req.body.content, "utf8"));
     res.json({ ok: true });
-  });
+  } catch (err) {
+    res.status(400).json({ error: "Kaydedilemedi: " + err.message });
+  }
 });
 
 // ---- Yükle ----
-app.post("/api/upload", upload.array("files"), (req, res) => {
+app.post("/api/upload", upload.array("files"), async (req, res) => {
   const s = getSession(req, res);
   if (!s) return;
   const dir = resolveRemote("/", req.body.path || "/");
   const files = req.files || [];
   if (!files.length) return res.status(400).json({ error: "Dosya seçilmedi." });
-
-  let pending = files.length;
-  let failed = null;
-  files.forEach((f) => {
-    const dest = path.posix.join(dir, f.originalname);
-    const ws = s.sftp.createWriteStream(dest);
-    ws.on("error", (err) => { failed = failed || err.message; done(); });
-    ws.on("close", done);
-    ws.end(f.buffer);
-  });
-  function done() {
-    if (--pending === 0) {
-      if (failed) res.status(400).json({ error: "Yükleme hatası: " + failed });
-      else res.json({ ok: true, count: files.length });
+  try {
+    for (const f of files) {
+      const dest = path.posix.join(dir, f.originalname);
+      await s.fs.uploadFrom(f.buffer, dest);
     }
+    res.json({ ok: true, count: files.length });
+  } catch (err) {
+    res.status(400).json({ error: "Yükleme hatası: " + err.message });
   }
 });
 
 // ---- Yeni klasör ----
-app.post("/api/mkdir", (req, res) => {
+app.post("/api/mkdir", async (req, res) => {
   const s = getSession(req, res);
   if (!s) return;
   const dir = resolveRemote("/", req.body.path);
   const name = req.body.name;
   if (!name) return res.status(400).json({ error: "Klasör adı gerekli." });
-  s.sftp.mkdir(path.posix.join(dir, name), (err) => {
-    if (err) return res.status(400).json({ error: "Klasör oluşturulamadı: " + err.message });
+  try {
+    await s.fs.mkdir(path.posix.join(dir, name));
     res.json({ ok: true });
-  });
+  } catch (err) {
+    res.status(400).json({ error: "Klasör oluşturulamadı: " + err.message });
+  }
 });
 
 // ---- Yeniden adlandır / taşı ----
-app.post("/api/rename", (req, res) => {
+app.post("/api/rename", async (req, res) => {
   const s = getSession(req, res);
   if (!s) return;
   const from = resolveRemote("/", req.body.from);
   const to = resolveRemote("/", req.body.to);
   if (!req.body.from || !req.body.to) return res.status(400).json({ error: "Kaynak ve hedef gerekli." });
-  s.sftp.rename(from, to, (err) => {
-    if (err) return res.status(400).json({ error: "İşlem başarısız: " + err.message });
+  try {
+    await s.fs.rename(from, to);
     res.json({ ok: true });
-  });
+  } catch (err) {
+    res.status(400).json({ error: "İşlem başarısız: " + err.message });
+  }
 });
 
 // ---- Sil ----
-app.post("/api/delete", (req, res) => {
+app.post("/api/delete", async (req, res) => {
   const s = getSession(req, res);
   if (!s) return;
   const target = resolveRemote("/", req.body.path);
   const type = req.body.type;
   if (!req.body.path) return res.status(400).json({ error: "Yol gerekli." });
-
-  if (type === "dir") {
-    rmdirRecursive(s.sftp, target, (err) => {
-      if (err) return res.status(400).json({ error: "Klasör silinemedi: " + err.message });
-      res.json({ ok: true });
-    });
-  } else {
-    s.sftp.unlink(target, (err) => {
-      if (err) return res.status(400).json({ error: "Silinemedi: " + err.message });
-      res.json({ ok: true });
-    });
+  try {
+    if (type === "dir") await s.fs.removeDir(target);
+    else await s.fs.removeFile(target);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: (type === "dir" ? "Klasör silinemedi: " : "Silinemedi: ") + err.message });
   }
 });
 
-// Klasörü içeriğiyle birlikte özyinelemeli sil
-function rmdirRecursive(sftp, dir, cb) {
-  sftp.readdir(dir, (err, list) => {
-    if (err) return cb(err);
-    let pending = list.length;
-    if (pending === 0) return sftp.rmdir(dir, cb);
-    let done = false;
-    const finish = (e) => {
-      if (done) return;
-      if (e) { done = true; return cb(e); }
-      if (--pending === 0) { done = true; sftp.rmdir(dir, cb); }
-    };
-    list.forEach((it) => {
-      const full = path.posix.join(dir, it.filename);
-      const isDir = (it.attrs.mode & 0o170000) === 0o040000;
-      if (isDir) rmdirRecursive(sftp, full, finish);
-      else sftp.unlink(full, finish);
-    });
-  });
-}
-
 // ---- Kayıtlı sunucular (servers.json dosyasında kalıcı) ----
-const SERVERS_FILE = path.join(__dirname, "servers.json");
+// Masaüstü (Electron) uygulamasında __dirname salt-okunur asar arşivinin içindedir;
+// bu yüzden yazılabilir bir veri klasörü (SERKANZILLA_DATA_DIR) varsa onu kullan.
+const DATA_DIR = process.env.SERKANZILLA_DATA_DIR || __dirname;
+const SERVERS_FILE = path.join(DATA_DIR, "servers.json");
+// Eski sürümlerden kalan servers.json varsa yeni konuma bir kez taşı/kopyala
+(function migrateServers() {
+  if (DATA_DIR === __dirname) return;
+  try {
+    if (fs.existsSync(SERVERS_FILE)) return;
+    const legacy = path.join(__dirname, "servers.json");
+    if (fs.existsSync(legacy)) {
+      try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (_) {}
+      fs.copyFileSync(legacy, SERVERS_FILE);
+    }
+  } catch (_) {}
+})();
 function readServers() {
   try { return JSON.parse(fs.readFileSync(SERVERS_FILE, "utf8")); }
   catch (_) { return []; }
 }
 function writeServers(arr) {
-  try { fs.writeFileSync(SERVERS_FILE, JSON.stringify(arr, null, 2)); return true; }
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(SERVERS_FILE, JSON.stringify(arr, null, 2));
+    return true;
+  }
   catch (_) { return false; }
 }
 
@@ -466,10 +430,12 @@ app.post("/api/servers", (req, res) => {
   const b = req.body || {};
   if (!b.host || !b.username) return res.status(400).json({ error: "host ve username gerekli." });
   const servers = readServers();
+  const protocol = (b.protocol || "sftp").toLowerCase();
   const server = {
     id: b.id || Date.now().toString(36),
     name: b.name || `${b.username}@${b.host}`,
-    host: b.host, port: b.port || 22, username: b.username,
+    host: b.host, port: b.port || (protocol === "sftp" ? 22 : 21), username: b.username,
+    protocol: ["sftp", "ftp", "ftps"].includes(protocol) ? protocol : "sftp",
     auth: b.auth === "key" ? "key" : "password",
     password: b.password || "",
     privateKey: b.privateKey || "",

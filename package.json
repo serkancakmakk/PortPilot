@@ -18,6 +18,7 @@
     "dist:linux": "electron-builder --linux"
   },
   "dependencies": {
+    "basic-ftp": "^5.3.1",
     "express": "^4.19.2",
     "multer": "^2.2.0",
     "ssh2": "^1.15.0"
@@ -32,6 +33,7 @@
     "files": [
       "electron/**/*",
       "server.js",
+      "lib/**/*",
       "public/**/*"
     ],
     "extraMetadata": {
