@@ -135,6 +135,11 @@ jobs:
       - name: Bağımlılıkları yükle
         run: npm ci
 
+      # Linux: .rpm üretimi için rpmbuild gerekir (.deb için gereken dpkg/fakeroot zaten var)
+      - name: Linux paket araçları (rpm)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
       # macOS: sertifika gizli anahtarı VARSA imzalama ortamını hazırla.
       # (Değişkenleri boş string '' ile tanımlamak electron-builder'ı bozuyordu;
       #  bu yüzden yalnızca gerçek değer varken $GITHUB_ENV'e yazıyoruz.)

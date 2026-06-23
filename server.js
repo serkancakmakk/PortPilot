@@ -787,14 +787,14 @@ app.delete("/api/servers/:id", (req, res) => {
 
 // ---- Masaüstü uygulaması indirmeleri (dist/ klasöründeki kurulum dosyaları) ----
 const DIST_DIR = path.join(__dirname, "dist");
-const APP_EXTS = [".dmg", ".appimage", ".deb", ".exe", ".zip"];
+const APP_EXTS = [".dmg", ".appimage", ".deb", ".rpm", ".exe", ".zip"];
 
 function platformOf(name) {
   const n = name.toLowerCase();
   if (n.endsWith(".dmg") || n.includes("-mac"))
     return { os: "mac", label: "macOS", icon: "🍎" };
   if (n.endsWith(".exe")) return { os: "win", label: "Windows", icon: "🪟" };
-  if (n.endsWith(".appimage") || n.endsWith(".deb"))
+  if (n.endsWith(".appimage") || n.endsWith(".deb") || n.endsWith(".rpm"))
     return { os: "linux", label: "Linux", icon: "🐧" };
   return { os: "other", label: "Diğer", icon: "💻" };
 }
