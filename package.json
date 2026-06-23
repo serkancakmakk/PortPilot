@@ -1,7 +1,7 @@
 {
-  "name": "serkanzilla",
+  "name": "sekozilla",
   "version": "1.0.12",
-  "description": "Serkanzilla — masaüstü ve tarayıcıdan kullanılan, Windows gezgini benzeri çok sunuculu SFTP dosya yöneticisi ve Docker paneli",
+  "description": "Sekozilla — masaüstü ve tarayıcıdan kullanılan, Windows gezgini benzeri çok sunuculu SFTP dosya yöneticisi ve Docker paneli",
   "main": "electron/main.js",
   "type": "commonjs",
   "author": {
@@ -30,7 +30,7 @@
   },
   "build": {
     "appId": "com.serkan.serkanzilla",
-    "productName": "Serkanzilla",
+    "productName": "Sekozilla",
     "files": [
       "electron/**/*",
       "server.js",

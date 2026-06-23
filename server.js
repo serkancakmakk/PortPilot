@@ -14,7 +14,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // Yüklemeler diske (geçici klasöre) akıtılır; tüm dosyalar RAM'e doldurulmaz.
 // Böylece büyük dosyalar ve klasörler bellek şişirmeden yüklenir.
-const UPLOAD_TMP = path.join(os.tmpdir(), "serkanzilla-uploads");
+const UPLOAD_TMP = path.join(os.tmpdir(), "sekozilla-uploads");
 try {
   fs.mkdirSync(UPLOAD_TMP, { recursive: true });
 } catch (_) {}
@@ -707,8 +707,8 @@ app.post("/api/delete", async (req, res) => {
 
 // ---- Kayıtlı sunucular (servers.json dosyasında kalıcı) ----
 // Masaüstü (Electron) uygulamasında __dirname salt-okunur asar arşivinin içindedir;
-// bu yüzden yazılabilir bir veri klasörü (SERKANZILLA_DATA_DIR) varsa onu kullan.
-const DATA_DIR = process.env.SERKANZILLA_DATA_DIR || __dirname;
+// bu yüzden yazılabilir bir veri klasörü (SEKOZILLA_DATA_DIR) varsa onu kullan.
+const DATA_DIR = process.env.SEKOZILLA_DATA_DIR || __dirname;
 const SERVERS_FILE = path.join(DATA_DIR, "servers.json");
 // Eski sürümlerden kalan servers.json varsa yeni konuma bir kez taşı/kopyala
 (function migrateServers() {
@@ -857,7 +857,7 @@ function startServer(port = PORT) {
   return new Promise((resolve) => {
     const srv = app.listen(port, () => {
       const real = srv.address().port;
-      console.log(`\n  Serkanzilla çalışıyor →  http://localhost:${real}\n`);
+      console.log(`\n  Sekozilla çalışıyor →  http://localhost:${real}\n`);
       resolve({ server: srv, port: real });
     });
   });
