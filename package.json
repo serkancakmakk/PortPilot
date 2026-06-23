@@ -1,6 +1,6 @@
 {
   "name": "serkanzilla",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Serkanzilla — masaüstü ve tarayıcıdan kullanılan, Windows gezgini benzeri çok sunuculu SFTP dosya yöneticisi ve Docker paneli",
   "main": "electron/main.js",
   "type": "commonjs",

@@ -80,13 +80,31 @@ jobs:
             # Derleme bu commit'ten yapılsın (yeni kod)
             echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
           else
+            # Tabanı, package.json ile mevcut en yüksek git etiketinin büyüğü olarak al.
+            # (Geçmiş bölünmesi/kopmuş etiket nedeniyle package.json geride kalsa bile
+            #  sürüm hep en yüksek yayımlanmış sürümün üstüne çıkar → çakışma olmaz.)
+            PKG=$(node -p "require('./package.json').version")
+            TAGMAX=$(git tag -l 'v*' | sed 's/^v//' | sort -V | tail -1)
+            TAGMAX=${TAGMAX:-0.0.0}
+            BASE=$(printf '%s\n%s\n' "$PKG" "$TAGMAX" | sort -V | tail -1)
+            echo "package.json=$PKG  en yüksek etiket=$TAGMAX  taban=$BASE"
+            npm version "$BASE" --no-git-tag-version --allow-same-version >/dev/null
             NEW=$(npm version ${{ steps.kind.outputs.kind }} --no-git-tag-version)
+            # Hesaplanan etiket yine de varsa (yerel/uzak), boş bir numara bulana dek artır.
+            git fetch --tags --force origin || true
+            while git rev-parse "$NEW" >/dev/null 2>&1; do
+              echo "$NEW etiketi mevcut, atlanıyor."
+              NEW=$(npm version patch --no-git-tag-version)
+            done
             echo "Yeni sürüm: $NEW"
             # [skip ci] → bu otomatik commit yeni bir derlemeyi tetiklemesin (sonsuz döngü engeli)
             git commit -am "chore: release $NEW [skip ci]"
             git tag "$NEW"
-            git push
-            git push --tags
+            # Push öncesi rebase: bu sırada dalın başına gelen commit'lerle bölünmeyi önle.
+            BR=$(git rev-parse --abbrev-ref HEAD)
+            git pull --rebase origin "$BR" || true
+            git push origin "HEAD:$BR"
+            git push origin "$NEW"
             echo "ref=$NEW" >> "$GITHUB_OUTPUT"
           fi
 
