@@ -114,7 +114,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, windows-latest, ubuntu-latest]
+        # macOS şimdilik devre dışı — geri açmak için "macos-latest" ekle.
+        os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     # secrets, adım "if" koşullarında kullanılamaz; bu yüzden sertifikanın
     # varlığını job-level env'e koyup if'lerde env üzerinden kontrol ediyoruz.
