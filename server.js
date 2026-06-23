@@ -14,7 +14,7 @@ app.use(express.static(path.join(__dirname, "public")));
 
 // Yüklemeler diske (geçici klasöre) akıtılır; tüm dosyalar RAM'e doldurulmaz.
 // Böylece büyük dosyalar ve klasörler bellek şişirmeden yüklenir.
-const UPLOAD_TMP = path.join(os.tmpdir(), "sekozilla-uploads");
+const UPLOAD_TMP = path.join(os.tmpdir(), "portpilot-uploads");
 try {
   fs.mkdirSync(UPLOAD_TMP, { recursive: true });
 } catch (_) {}
@@ -337,6 +337,24 @@ app.get("/api/docker/idle", (req, res) => {
     // En uzun süredir hareketsiz olan en üstte
     containers.sort((a, b) => b.idleMs - a.idleMs);
     res.json({ available: true, containers, now });
+  });
+});
+
+// Temizlik (prune): durmuş konteynerler veya artık (dangling) imajlar
+const PRUNE_CMDS = {
+  containers: "docker container prune -f",
+  images: "docker image prune -f",
+};
+app.post("/api/docker/prune", (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  const cmd = PRUNE_CMDS[req.body && req.body.what];
+  if (!cmd) return res.status(400).json({ error: "Geçersiz temizlik türü." });
+  dockerExec(s, cmd + " 2>&1", (err, r) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (r.code !== 0)
+      return res.status(400).json({ error: (r.out || "Temizlik başarısız").trim() });
+    res.json({ ok: true, output: (r.out || "").trim() });
   });
 });
 
@@ -759,8 +777,8 @@ app.post("/api/delete", async (req, res) => {
 
 // ---- Kayıtlı sunucular (servers.json dosyasında kalıcı) ----
 // Masaüstü (Electron) uygulamasında __dirname salt-okunur asar arşivinin içindedir;
-// bu yüzden yazılabilir bir veri klasörü (SEKOZILLA_DATA_DIR) varsa onu kullan.
-const DATA_DIR = process.env.SEKOZILLA_DATA_DIR || __dirname;
+// bu yüzden yazılabilir bir veri klasörü (PORTPILOT_DATA_DIR) varsa onu kullan.
+const DATA_DIR = process.env.PORTPILOT_DATA_DIR || __dirname;
 const SERVERS_FILE = path.join(DATA_DIR, "servers.json");
 // Eski sürümlerden kalan servers.json varsa yeni konuma bir kez taşı/kopyala
 (function migrateServers() {
@@ -909,7 +927,7 @@ function startServer(port = PORT) {
   return new Promise((resolve) => {
     const srv = app.listen(port, () => {
       const real = srv.address().port;
-      console.log(`\n  Sekozilla çalışıyor →  http://localhost:${real}\n`);
+      console.log(`\n  PortPilot çalışıyor →  http://localhost:${real}\n`);
       resolve({ server: srv, port: real });
     });
   });

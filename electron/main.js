@@ -1,6 +1,6 @@
 "use strict";
 
-// Sekozilla masaüstü (Electron) giriş noktası.
+// PortPilot masaüstü (Electron) giriş noktası.
 // Express sunucusunu yerel bir portta başlatır ve bir pencere içinde açar.
 // macOS · Windows · Linux için electron-builder ile paketlenir.
 
@@ -10,7 +10,7 @@ const { autoUpdater } = require("electron-updater");
 
 // Kayıtlı sunucular paket içindeki salt-okunur asar'a değil, yazılabilir
 // kullanıcı veri klasörüne kaydedilsin. (server.js require edilmeden ÖNCE ayarla.)
-process.env.SEKOZILLA_DATA_DIR = app.getPath("userData");
+process.env.PORTPILOT_DATA_DIR = app.getPath("userData");
 
 const { startServer } = require("../server.js");
 
@@ -18,7 +18,7 @@ let mainWindow = null;
 let httpServer = null;
 
 // GitHub deposu (güncelleme denetimi için)
-const REPO = "serkancakmakk/Serkanzilla";
+const REPO = "serkancakmakk/PortPilot";
 
 function cmpVersion(a, b) {
   const pa = String(a).replace(/^v/, "").split(".").map((n) => parseInt(n, 10) || 0);
@@ -38,7 +38,7 @@ async function checkForUpdate() {
   const fallbackUrl = `https://github.com/${REPO}/releases/latest`;
   try {
     const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
-      headers: { Accept: "application/vnd.github+json", "User-Agent": "Sekozilla" },
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "PortPilot" },
     });
     if (!res.ok) {
       const hint = res.status === 403 ? "GitHub API limiti (kısa süre sonra tekrar deneyin)" : "HTTP " + res.status;
@@ -155,7 +155,7 @@ async function createWindow() {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: "#eef1f6",
-    title: "Sekozilla",
+    title: "PortPilot",
     icon: path.join(__dirname, "..", "public", "icon.png"),
     webPreferences: {
       contextIsolation: true,

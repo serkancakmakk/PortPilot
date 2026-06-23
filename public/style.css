@@ -1902,3 +1902,28 @@ tr.dir .fname {
   white-space: nowrap;
   opacity: .65;
 }
+
+/* ---- Dosya arama kutusu ---- */
+.file-search {
+  flex: 0 1 240px;
+  min-width: 120px;
+  margin: 0 8px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, .15);
+  background: rgba(255, 255, 255, .06);
+  color: var(--text, #e6e9ef);
+  font-size: 13px;
+}
+.file-search:focus { outline: none; border-color: #4f8cff; background: rgba(255, 255, 255, .1); }
+
+/* Gizli toggle aktif (gizliyorken) */
+.tbtn.active { background: #4f8cff; color: #fff; }
+
+/* ---- Docker prune araç çubuğu ---- */
+.dk-prune {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, .08);
+}

@@ -80,31 +80,43 @@ jobs:
             # Derleme bu commit'ten yapılsın (yeni kod)
             echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
           else
-            # Tabanı, package.json ile mevcut en yüksek git etiketinin büyüğü olarak al.
-            # (Geçmiş bölünmesi/kopmuş etiket nedeniyle package.json geride kalsa bile
-            #  sürüm hep en yüksek yayımlanmış sürümün üstüne çıkar → çakışma olmaz.)
             PKG=$(node -p "require('./package.json').version")
-            TAGMAX=$(git tag -l 'v*' | sed 's/^v//' | sort -V | tail -1)
-            TAGMAX=${TAGMAX:-0.0.0}
-            BASE=$(printf '%s\n%s\n' "$PKG" "$TAGMAX" | sort -V | tail -1)
-            echo "package.json=$PKG  en yüksek etiket=$TAGMAX  taban=$BASE"
-            npm version "$BASE" --no-git-tag-version --allow-same-version >/dev/null
-            NEW=$(npm version ${{ steps.kind.outputs.kind }} --no-git-tag-version)
-            # Hesaplanan etiket yine de varsa (yerel/uzak), boş bir numara bulana dek artır.
             git fetch --tags --force origin || true
+            FIRST_TAG=$(git tag -l 'v*' | head -n1)
+            if [ -z "$FIRST_TAG" ]; then
+              # İLK SÜRÜM (depoda hiç etiket yok): package.json sürümünü olduğu gibi yayınla (örn. 1.0.0)
+              NEW="v$PKG"
+              echo "İlk sürüm: $NEW"
+            else
+              # Sonraki sürümler: package.json ile en yüksek etiketin büyüğünü baz al, sonra artır.
+              TAGMAX=$(git tag -l 'v*' | sed 's/^v//' | sort -V | tail -1)
+              TAGMAX=${TAGMAX:-0.0.0}
+              BASE=$(printf '%s\n%s\n' "$PKG" "$TAGMAX" | sort -V | tail -1)
+              echo "package.json=$PKG  en yüksek etiket=$TAGMAX  taban=$BASE"
+              npm version "$BASE" --no-git-tag-version --allow-same-version >/dev/null
+              NEW=$(npm version ${{ steps.kind.outputs.kind }} --no-git-tag-version)
+            fi
+            # Hesaplanan etiket yine de varsa, boş bir numara bulana dek artır (çakışmayı önle).
             while git rev-parse "$NEW" >/dev/null 2>&1; do
               echo "$NEW etiketi mevcut, atlanıyor."
               NEW=$(npm version patch --no-git-tag-version)
             done
+            # package.json sürümünü NEW ile eşitle (gerekiyorsa)
+            npm version "${NEW#v}" --no-git-tag-version --allow-same-version >/dev/null
             echo "Yeni sürüm: $NEW"
-            # [skip ci] → bu otomatik commit yeni bir derlemeyi tetiklemesin (sonsuz döngü engeli)
-            git commit -am "chore: release $NEW [skip ci]"
-            git tag "$NEW"
-            # Push öncesi rebase: bu sırada dalın başına gelen commit'lerle bölünmeyi önle.
             BR=$(git rev-parse --abbrev-ref HEAD)
-            git pull --rebase origin "$BR" || true
-            git push origin "HEAD:$BR"
-            git push origin "$NEW"
+            if git diff --quiet; then
+              # package.json değişmedi (ilk sürüm 1.0.0) → yalnızca etiketle
+              git tag "$NEW"
+              git push origin "$NEW"
+            else
+              # [skip ci] → bu otomatik commit yeni bir derlemeyi tetiklemesin (sonsuz döngü engeli)
+              git commit -am "chore: release $NEW [skip ci]"
+              git tag "$NEW"
+              git pull --rebase origin "$BR" || true
+              git push origin "HEAD:$BR"
+              git push origin "$NEW"
+            fi
             echo "ref=$NEW" >> "$GITHUB_OUTPUT"
           fi
 
@@ -179,8 +191,8 @@ jobs:
           retention-days: 1
 
   # 3) Pacman deposunu üret ve sabit 'arch-repo' release'inde yayımla.
-  #    Kullanıcı /etc/pacman.conf'a şunu ekleyip `pacman -Syu sekozilla` ile kurar/günceller:
-  #      [sekozilla]
+  #    Kullanıcı /etc/pacman.conf'a şunu ekleyip `pacman -Syu portpilot` ile kurar/günceller:
+  #      [portpilot]
   #      SigLevel = Optional TrustAll
   #      Server = https://github.com/<owner>/<repo>/releases/download/arch-repo
   arch-repo:
@@ -207,11 +219,11 @@ jobs:
               mv "$f" "${f%.pacman}-x86_64.pkg.tar.zst"
             done
             if ! ls *.pkg.tar.zst >/dev/null 2>&1; then echo "x86_64 pacman paketi yok"; exit 1; fi
-            repo-add sekozilla.db.tar.zst *.pkg.tar.zst
-            # repo-add, sekozilla.db ve sekozilla.files dosyalarını gerçek tarball-a SEMBOLİK LİNK
+            repo-add portpilot.db.tar.zst *.pkg.tar.zst
+            # repo-add, portpilot.db ve portpilot.files dosyalarını gerçek tarball-a SEMBOLİK LİNK
             # olarak üretir. GitHub release-te link işe yaramaz → linkin HEDEFİNİ gerçek dosya yap.
             # (Dosya adına/uzantısına bağlı değil; repo-add ne ürettiyse onu izler.)
-            for name in sekozilla.db sekozilla.files; do
+            for name in portpilot.db portpilot.files; do
               if [ -L "$name" ]; then
                 target=$(readlink "$name")
                 rm -f "$name"
@@ -232,12 +244,12 @@ jobs:
               --title "Arch / pacman deposu" \
               --notes "CachyOS/Arch için pacman deposu. /etc/pacman.conf'a ekleyin:
 
-          [sekozilla]
+          [portpilot]
           SigLevel = Optional TrustAll
           Server = https://github.com/${GITHUB_REPOSITORY}/releases/download/arch-repo
 
-          Sonra: sudo pacman -Sy sekozilla" \
+          Sonra: sudo pacman -Sy portpilot" \
               --latest=false
           # pacman yalnızca <repo>.db (ve .files) ister; bunlar artık gerçek tarball.
           gh release upload arch-repo --clobber \
-            *.pkg.tar.zst sekozilla.db sekozilla.files
+            *.pkg.tar.zst portpilot.db portpilot.files

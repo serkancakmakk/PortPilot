@@ -1,7 +1,7 @@
 {
-  "name": "sekozilla",
-  "version": "1.0.12",
-  "description": "Sekozilla — masaüstü ve tarayıcıdan kullanılan, Windows gezgini benzeri çok sunuculu SFTP dosya yöneticisi ve Docker paneli",
+  "name": "portpilot",
+  "version": "1.0.0",
+  "description": "PortPilot — masaüstü ve tarayıcıdan kullanılan, Windows gezgini benzeri çok sunuculu SFTP dosya yöneticisi ve Docker paneli",
   "main": "electron/main.js",
   "type": "commonjs",
   "author": {
@@ -29,8 +29,8 @@
     "electron-builder": "^24.13.3"
   },
   "build": {
-    "appId": "com.serkan.serkanzilla",
-    "productName": "Sekozilla",
+    "appId": "com.serkan.portpilot",
+    "productName": "PortPilot",
     "files": [
       "electron/**/*",
       "server.js",
@@ -48,7 +48,7 @@
       {
         "provider": "github",
         "owner": "serkancakmakk",
-        "repo": "Serkanzilla",
+        "repo": "PortPilot",
         "releaseType": "release"
       }
     ],

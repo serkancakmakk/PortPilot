@@ -36,6 +36,7 @@ const ICONS = {
   list: '<path d="M3 6h.01M3 12h.01M3 18h.01"/><path d="M8 6h13M8 12h13M8 18h13"/>',
   container: '<path d="M22 7.7c0-.6-.4-1.2-.8-1.5l-6.3-3.9a1.7 1.7 0 0 0-1.7 0l-10.3 6c-.5.2-.9.8-.9 1.4v6.6c0 .5.4 1.2.8 1.5l6.3 3.9a1.7 1.7 0 0 0 1.7 0l10.3-6c.5-.3.9-.9.9-1.5Z"/><path d="M10 21.9V14L2.1 9.1"/><path d="m10 14 11.9-6.9"/><path d="M14 19.8v-8.1"/><path d="M18 17.5V9.4"/>',
   "chevron-right": '<path d="m9 18 6-6-6-6"/>',
+  eye: '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
 };
 
 // İkon adından inline SVG üretir (currentColor ile metin rengini alır)
@@ -507,7 +508,10 @@ async function navigate(target, pushHistory = true) {
     if (pushHistory && cwd !== data.path) history.push(cwd);
     cwd = data.path;
     renderBreadcrumb();
-    renderList(data.items);
+    allItems = data.items;
+    if ($("file-search")) $("file-search").value = "";
+    fileFilter = "";
+    applyFileView();
     highlightQuick();
     $("btn-back").disabled = history.length === 0;
     $("btn-up").disabled = cwd === "/";
@@ -645,8 +649,46 @@ function typeLabel(item) {
 }
 
 let currentItems = [];
+let allItems = [];        // klasörün filtrelenmemiş tam listesi
+let fileFilter = "";      // arama kutusundaki metin
+let showHidden = localStorage.getItem("showHidden") !== "0"; // gizli (.) dosyalar görünsün mü
 let selectedItem = null;
 let viewMode = localStorage.getItem("viewMode") || "grid"; // varsayılan: masaüstü tarzı simge
+
+// Tam listeyi gizli-filtre + arama metnine göre süzüp aktif görünümü çizer
+function applyFileView() {
+  let items = allItems;
+  if (!showHidden) items = items.filter((i) => !i.name.startsWith("."));
+  const q = fileFilter.trim().toLowerCase();
+  if (q) items = items.filter((i) => i.name.toLowerCase().includes(q));
+  renderList(items);
+}
+
+// Arama kutusu (canlı filtre)
+if ($("file-search")) {
+  $("file-search").addEventListener("input", (e) => {
+    fileFilter = e.target.value;
+    applyFileView();
+  });
+  $("file-search").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { e.target.value = ""; fileFilter = ""; applyFileView(); }
+  });
+}
+
+// Gizli dosyaları göster/gizle
+function updateHiddenBtn() {
+  const b = $("btn-hidden");
+  if (b) b.classList.toggle("active", !showHidden);
+}
+if ($("btn-hidden")) {
+  $("btn-hidden").addEventListener("click", () => {
+    showHidden = !showHidden;
+    localStorage.setItem("showHidden", showHidden ? "1" : "0");
+    updateHiddenBtn();
+    applyFileView();
+  });
+  updateHiddenBtn();
+}
 
 function selectEl(el, item) {
   $("file-area").querySelectorAll(".selected").forEach((e) => e.classList.remove("selected"));
@@ -1078,12 +1120,36 @@ function renderIdle(list, now) {
       <td><div class="dk-actions">${a.join("")}</div></td>
     </tr>`;
   }).join("");
+  const tools =
+    `<div class="dk-prune">
+      <button class="dk-btn danger" onclick="dockerPrune('containers')">🧹 Durmuş konteynerleri sil</button>
+      <button class="dk-btn danger" onclick="dockerPrune('images')">🧹 Artık (dangling) imajları sil</button>
+    </div>`;
   const hint = longIdle
     ? `<div class="dk-msg" style="text-align:left;padding:10px 14px;opacity:.8">⚠️ işaretli konteynerler 7+ gündür durdurulmuş — artık gerekmiyorsa silebilirsin.</div>`
     : "";
-  $("docker-body").innerHTML = hint +
+  $("docker-body").innerHTML = tools + hint +
     `<table class="dk-table"><thead><tr><th>Konteyner</th><th>Durum</th><th>Son hareket</th><th>Oluşturulma</th><th>Restart</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
+
+// Docker temizliği: durmuş konteynerler veya artık imajlar
+async function dockerPrune(what) {
+  const msg = what === "containers"
+    ? "TÜM durmuş konteynerler kalıcı olarak silinsin mi? (çalışanlar etkilenmez)"
+    : "Kullanılmayan (dangling) tüm imajlar silinsin mi?";
+  if (!confirm(msg)) return;
+  showLoading(true);
+  try {
+    const r = await api("docker/prune", { method: "POST", json: { what } });
+    toast(r.output ? r.output.split("\n").slice(-1)[0] : "Temizlik tamam");
+    await loadDocker();
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    showLoading(false);
+  }
+}
+window.dockerPrune = dockerPrune;
 
 function btn(action, id, type, label, extra = "") {
   return `<button class="dk-btn ${extra}" onclick="dockerAction('${action}','${id}','${type}')">${label}</button>`;

@@ -1,4 +1,4 @@
-# 🦖 Sekozilla
+# 🦖 PortPilot
 
 ![version](https://img.shields.io/badge/sürüm-v1-2563eb) ![node](https://img.shields.io/badge/node-%3E%3D18-339933) ![license](https://img.shields.io/badge/lisans-MIT-555)
 
@@ -83,7 +83,7 @@ Tarayıcıdan **http://localhost:3000** adresini aç.
 
 ## 🖥️ Masaüstü uygulaması (Mac · Windows · Linux)
 
-Sekozilla, web aracının yanı sıra **çapraz platform bir masaüstü uygulaması** olarak da paketlenebilir
+PortPilot, web aracının yanı sıra **çapraz platform bir masaüstü uygulaması** olarak da paketlenebilir
 (Electron). Kurulum dosyalarını **kendi makinende sen derlersin** — depoda hazır ikili (binary) gönderilmez.
 
 ```bash
@@ -108,9 +108,9 @@ Belirli platformlar için:
 
 | Dağıtım | Dosya | Kurulum |
 |---------|-------|---------|
-| **CachyOS / Arch / Manjaro** | `.pacman` | `sudo pacman -U Sekozilla-*-x86_64.pacman` |
-| **Ubuntu / Debian** | `.deb` | `sudo apt install ./Sekozilla_*_amd64.deb` |
-| **Fedora / RHEL / openSUSE** | `.rpm` | `sudo dnf install ./Sekozilla-*.x86_64.rpm` |
+| **CachyOS / Arch / Manjaro** | `.pacman` | `sudo pacman -U PortPilot-*-x86_64.pacman` |
+| **Ubuntu / Debian** | `.deb` | `sudo apt install ./PortPilot_*_amd64.deb` |
+| **Fedora / RHEL / openSUSE** | `.rpm` | `sudo dnf install ./PortPilot-*.x86_64.rpm` |
 | **Her dağıtım (kurulumsuz)** | `.AppImage` | `chmod +x *.AppImage && ./*.AppImage` |
 
 > AppImage FUSE2 ister; Arch tabanlılarda `sudo pacman -S fuse2` ya da
@@ -122,15 +122,15 @@ AUR'a gerek yok. Her sürümde CI, x86_64 pacman paketini bir depoya çevirip `a
 release'inde yayımlar. Kullanıcı `/etc/pacman.conf` sonuna **bir kez** şunu ekler:
 
 ```ini
-[sekozilla]
+[portpilot]
 SigLevel = Optional TrustAll
-Server = https://github.com/serkancakmakk/Serkanzilla/releases/download/arch-repo
+Server = https://github.com/serkancakmakk/PortPilot/releases/download/arch-repo
 ```
 
 Sonra kurar ve bundan sonra normal sistem güncellemeleriyle otomatik güncel kalır:
 
 ```sh
-sudo pacman -Sy sekozilla     # kur
+sudo pacman -Sy portpilot     # kur
 sudo pacman -Syu                # güncelle (yeni sürümler otomatik gelir)
 ```
 
