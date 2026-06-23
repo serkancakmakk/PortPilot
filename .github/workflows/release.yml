@@ -135,10 +135,13 @@ jobs:
       - name: Bağımlılıkları yükle
         run: npm ci
 
-      # Linux: .rpm üretimi için rpmbuild gerekir (.deb için gereken dpkg/fakeroot zaten var)
-      - name: Linux paket araçları (rpm)
+      # Linux paket araçları:
+      #   .rpm   → rpmbuild (rpm)
+      #   .pacman→ bsdtar (libarchive-tools) + zstd
+      #   .deb   → dpkg/fakeroot (runner'da zaten var)
+      - name: Linux paket araçları (rpm + pacman)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y rpm
+        run: sudo apt-get update && sudo apt-get install -y rpm libarchive-tools zstd
 
       # macOS: sertifika gizli anahtarı VARSA imzalama ortamını hazırla.
       # (Değişkenleri boş string '' ile tanımlamak electron-builder'ı bozuyordu;
