@@ -80,6 +80,10 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
+    # secrets, adım "if" koşullarında kullanılamaz; bu yüzden sertifikanın
+    # varlığını job-level env'e koyup if'lerde env üzerinden kontrol ediyoruz.
+    env:
+      HAS_MAC_CERT: ${{ secrets.MAC_CSC_LINK != '' }}
     steps:
       - name: Yeni sürümü (etiketi) al
         uses: actions/checkout@v4
@@ -99,7 +103,7 @@ jobs:
       # (Değişkenleri boş string '' ile tanımlamak electron-builder'ı bozuyordu;
       #  bu yüzden yalnızca gerçek değer varken $GITHUB_ENV'e yazıyoruz.)
       - name: macOS imzalama değişkenleri
-        if: matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK != ''
+        if: matrix.os == 'macos-latest' && env.HAS_MAC_CERT == 'true'
         run: |
           {
             echo "CSC_LINK=${{ secrets.MAC_CSC_LINK }}"
@@ -111,7 +115,7 @@ jobs:
 
       # macOS: sertifika yoksa imzalamayı tamamen kapat (notarization da atlanır)
       - name: macOS imzasız mod
-        if: matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK == ''
+        if: matrix.os == 'macos-latest' && env.HAS_MAC_CERT != 'true'
         run: echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
 
       - name: Derle ve release'e yükle
