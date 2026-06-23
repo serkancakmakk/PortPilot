@@ -4,6 +4,7 @@ const crypto = require("crypto");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
+const { WebSocketServer } = require("ws");
 const { connectRemote } = require("./lib/remote-fs");
 
 const app = express();
@@ -246,15 +247,20 @@ app.get("/api/docker/ps", (req, res) => {
         available: false,
         error: (r.errout || "Docker bulunamadı").trim(),
       });
-    const containers = parseJsonLines(r.out).map((c) => ({
-      id: c.ID,
-      name: c.Names,
-      image: c.Image,
-      status: c.Status,
-      state: c.State || (/^up/i.test(c.Status) ? "running" : "exited"),
-      ports: c.Ports || "",
-      created: c.CreatedAt || c.RunningFor || "",
-    }));
+    const containers = parseJsonLines(r.out).map((c) => {
+      // docker compose ile başlatılan konteynerler bu etiketle gruplanır
+      const m = /com\.docker\.compose\.project=([^,]+)/.exec(c.Labels || "");
+      return {
+        id: c.ID,
+        name: c.Names,
+        image: c.Image,
+        status: c.Status,
+        state: c.State || (/^up/i.test(c.Status) ? "running" : "exited"),
+        ports: c.Ports || "",
+        created: c.CreatedAt || c.RunningFor || "",
+        group: m ? m[1] : "",
+      };
+    });
     res.json({ available: true, containers });
   });
 });
@@ -944,6 +950,45 @@ app.get("/api/health", (req, res) =>
 // Doğrudan `node server.js` ile çalıştırıldığında dinle.
 // Electron (electron/main.js) içinden require edildiğinde otomatik dinleme yapma;
 // orada uygulama kendi portunu seçip startServer() çağırır.
+// ---- Konteyner terminali (WebSocket + SSH PTY) ----
+// Tarayıcı /api/terminal'e bağlanır; sunucu SSH üzerinden `docker exec -it` ile
+// interaktif bir kabuk açıp iki yönlü akışı WebSocket'e bağlar.
+function attachTerminal(server) {
+  const wss = new WebSocketServer({ server, path: "/api/terminal" });
+  wss.on("connection", (ws, req) => {
+    const url = new URL(req.url, "http://localhost");
+    const token = url.searchParams.get("session");
+    const id = url.searchParams.get("id");
+    const cols = Math.min(500, Math.max(20, parseInt(url.searchParams.get("cols"), 10) || 80));
+    const rows = Math.min(200, Math.max(5, parseInt(url.searchParams.get("rows"), 10) || 24));
+    const say = (t) => { try { if (ws.readyState === 1) ws.send(t); } catch (_) {} };
+
+    const s = token && sessions.get(token);
+    if (!s) { say("\r\nOturum bulunamadı veya süresi doldu.\r\n"); return ws.close(); }
+    if (!hasExec(s)) { say("\r\nTerminal yalnızca SFTP (SSH) bağlantılarında kullanılabilir.\r\n"); return ws.close(); }
+    if (!id || !SAFE_ID.test(id)) { say("\r\nGeçersiz konteyner kimliği.\r\n"); return ws.close(); }
+    s.lastUsed = Date.now();
+
+    // bash varsa onu, yoksa sh'i çalıştır
+    const cmd = `docker exec -it ${shQuote(id)} sh -c 'exec bash 2>/dev/null || exec sh'`;
+    s.fs.exec.exec(cmd, { pty: { cols, rows, term: "xterm-256color" } }, (err, stream) => {
+      if (err) { say("\r\nHata: " + err.message + "\r\n"); return ws.close(); }
+      stream.on("data", (d) => say(d));
+      stream.stderr.on("data", (d) => say(d));
+      stream.on("close", () => { try { ws.close(); } catch (_) {} });
+      ws.on("message", (raw) => {
+        let m;
+        try { m = JSON.parse(raw.toString()); } catch (_) { return; }
+        if (typeof m.i === "string") stream.write(m.i);                       // klavye girişi
+        else if (Array.isArray(m.r)) {                                        // boyut değişimi [cols, rows]
+          try { stream.setWindow(m.r[1], m.r[0], 0, 0); } catch (_) {}
+        }
+      });
+      ws.on("close", () => { try { stream.end(); } catch (_) {} });
+    });
+  });
+}
+
 function startServer(port = PORT) {
   return new Promise((resolve) => {
     const srv = app.listen(port, () => {
@@ -951,6 +996,7 @@ function startServer(port = PORT) {
       console.log(`\n  PortPilot çalışıyor →  http://localhost:${real}\n`);
       resolve({ server: srv, port: real });
     });
+    attachTerminal(srv);
   });
 }
 

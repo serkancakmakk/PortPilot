@@ -334,6 +334,15 @@ function maybeSaveServer(body) {
 
 let selectedServerIds = new Set();
 
+// Kapatılmış grupların adlarını localStorage'da sakla
+function loadCollapsedGroups() {
+  try { return new Set(JSON.parse(localStorage.getItem("collapsedGroups") || "[]")); }
+  catch (_) { return new Set(); }
+}
+function saveCollapsedGroups(set) {
+  localStorage.setItem("collapsedGroups", JSON.stringify([...set]));
+}
+
 async function renderSavedServers() {
   try {
     const data = await api("servers");
@@ -374,30 +383,46 @@ async function renderSavedServers() {
     groups.get(g).push(s);
   });
 
+  const collapsed = loadCollapsedGroups();
+
   groups.forEach((items, g) => {
     const label = g || "Gruplanmamış";
+    const isCollapsed = collapsed.has(label);
     const section = document.createElement("div");
-    section.className = "srv-group";
+    section.className = "srv-group" + (isCollapsed ? " collapsed" : "");
     const head = document.createElement("div");
     head.className = "srv-group-head";
-    head.innerHTML = `<span class="srv-group-name">📁 ${escapeHtml(label)} <span class="srv-group-count">${items.length}</span></span>`;
+    head.innerHTML = `<span class="srv-group-name"><span class="srv-chevron">▾</span> 📁 ${escapeHtml(label)} <span class="srv-group-count">${items.length}</span></span>`;
     const delG = document.createElement("button");
     delG.type = "button";
     delG.className = "srv-group-del";
     delG.textContent = "🗑 Grubu sil";
-    delG.addEventListener("click", () =>
+    delG.addEventListener("click", (e) => {
+      e.stopPropagation();
       bulkDelete(
         g ? { group: g } : { ids: items.map((x) => x.id) },
         `"${label}" grubundaki ${items.length} sunucu silinsin mi?`,
-      ),
-    );
+      );
+    });
     head.appendChild(delG);
     section.appendChild(head);
 
     const inner = document.createElement("div");
     inner.className = "saved-list";
+    inner.hidden = isCollapsed;
     items.forEach((s) => inner.appendChild(buildServerCell(s, updateBulkBtn)));
     section.appendChild(inner);
+
+    // Başlığa tıkla → aç/kapa (kalıcı)
+    head.querySelector(".srv-group-name").addEventListener("click", () => {
+      const nowCollapsed = !section.classList.contains("collapsed");
+      section.classList.toggle("collapsed", nowCollapsed);
+      inner.hidden = nowCollapsed;
+      const set = loadCollapsedGroups();
+      if (nowCollapsed) set.add(label); else set.delete(label);
+      saveCollapsedGroups(set);
+    });
+
     list.appendChild(section);
   });
 
@@ -1132,36 +1157,65 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
 
+// Tek bir konteyner satırı (<tr>) üret
+function containerRow(c, statsMap) {
+  const st = (c.state || "").toLowerCase();
+  const cls = st.includes("run") ? "running" : st.includes("paus") ? "paused" : "exited";
+  const running = cls === "running";
+  const paused = cls === "paused";
+  const stat = statsMap[c.name] || statsMap[c.id] || statsMap[(c.id || "").slice(0, 12)] || null;
+  const cpu = stat && stat.cpu ? stat.cpu : "—";
+  const mem = stat && stat.mem ? stat.mem : "—";
+  const memPerc = stat && stat.memPerc ? stat.memPerc : "";
+  const a = [];
+  if (!running && !paused) a.push(btn("start", c.id, "container", "▶ Başlat", "go"));
+  if (running) a.push(btn(paused ? "unpause" : "pause", c.id, "container", paused ? "▶ Devam" : "⏸ Duraklat"));
+  if (running || paused) a.push(btn("stop", c.id, "container", "⏹ Durdur"));
+  a.push(btn("restart", c.id, "container", "⟳ Yeniden başlat"));
+  if (running) a.push(`<button class="dk-btn" onclick="openTerminal('${c.id}','${escapeAttr(c.name)}')">⌨ Terminal</button>`);
+  a.push(`<button class="dk-btn" onclick="dockerLogs('${c.id}','${escapeAttr(c.name)}')">📄 Loglar</button>`);
+  a.push(btn("rm", c.id, "container", "🗑 Sil", "danger"));
+  return `<tr>
+    <td><div class="dk-name">${escapeHtml(c.name)}</div><div class="dk-sub">${escapeHtml(c.image)}</div></td>
+    <td><span class="dk-state ${cls}"><span class="dot"></span>${escapeHtml(c.status || c.state)}</span></td>
+    <td class="dk-metric">${escapeHtml(cpu)}</td>
+    <td class="dk-metric"><div>${escapeHtml(mem)}</div>${memPerc ? `<div class="dk-sub">${escapeHtml(memPerc)}</div>` : ""}</td>
+    <td class="dk-sub">${escapeHtml(c.ports || "—")}</td>
+    <td><div class="dk-actions">${a.join("")}</div></td>
+  </tr>`;
+}
+
+const DK_HEAD = `<thead><tr><th>Konteyner</th><th>Durum</th><th>CPU</th><th>RAM</th><th>Portlar</th><th></th></tr></thead>`;
+
 function renderContainers(list, statsMap = {}) {
   $("docker-status").textContent = `${list.length} konteyner`;
   if (!list.length) { $("docker-body").innerHTML = `<div class="dk-msg">Hiç konteyner yok.</div>`; return; }
-  const rows = list.map((c) => {
-    const st = (c.state || "").toLowerCase();
-    const cls = st.includes("run") ? "running" : st.includes("paus") ? "paused" : "exited";
-    const running = cls === "running";
-    const paused = cls === "paused";
-    const stat = statsMap[c.name] || statsMap[c.id] || statsMap[(c.id || "").slice(0, 12)] || null;
-    const cpu = stat && stat.cpu ? stat.cpu : "—";
-    const mem = stat && stat.mem ? stat.mem : "—";
-    const memPerc = stat && stat.memPerc ? stat.memPerc : "";
-    const a = [];
-    if (!running && !paused) a.push(btn("start", c.id, "container", "▶ Başlat", "go"));
-    if (running) a.push(btn(paused ? "unpause" : "pause", c.id, "container", paused ? "▶ Devam" : "⏸ Duraklat"));
-    if (running || paused) a.push(btn("stop", c.id, "container", "⏹ Durdur"));
-    a.push(btn("restart", c.id, "container", "⟳ Yeniden başlat"));
-    a.push(`<button class="dk-btn" onclick="dockerLogs('${c.id}','${escapeAttr(c.name)}')">📄 Loglar</button>`);
-    a.push(btn("rm", c.id, "container", "🗑 Sil", "danger"));
-    return `<tr>
-      <td><div class="dk-name">${escapeHtml(c.name)}</div><div class="dk-sub">${escapeHtml(c.image)}</div></td>
-      <td><span class="dk-state ${cls}"><span class="dot"></span>${escapeHtml(c.status || c.state)}</span></td>
-      <td class="dk-metric">${escapeHtml(cpu)}</td>
-      <td class="dk-metric"><div>${escapeHtml(mem)}</div>${memPerc ? `<div class="dk-sub">${escapeHtml(memPerc)}</div>` : ""}</td>
-      <td class="dk-sub">${escapeHtml(c.ports || "—")}</td>
-      <td><div class="dk-actions">${a.join("")}</div></td>
-    </tr>`;
-  }).join("");
-  $("docker-body").innerHTML =
-    `<table class="dk-table"><thead><tr><th>Konteyner</th><th>Durum</th><th>CPU</th><th>RAM</th><th>Portlar</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+
+  // compose projesine göre grupla (eklenme sırası korunur)
+  const groups = new Map();
+  list.forEach((c) => {
+    const g = (c.group || "").trim();
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(c);
+  });
+  const hasGroups = [...groups.keys()].some((k) => k);
+
+  if (!hasGroups) {
+    const rows = list.map((c) => containerRow(c, statsMap)).join("");
+    $("docker-body").innerHTML = `<table class="dk-table">${DK_HEAD}<tbody>${rows}</tbody></table>`;
+    return;
+  }
+
+  let html = "";
+  groups.forEach((items, g) => {
+    const label = g || "Diğer (compose dışı)";
+    const rows = items.map((c) => containerRow(c, statsMap)).join("");
+    html += `<div class="dk-group">
+      <div class="dk-group-head">🧩 ${escapeHtml(label)} <span class="srv-group-count">${items.length}</span></div>
+      <table class="dk-table">${DK_HEAD}<tbody>${rows}</tbody></table>
+    </div>`;
+  });
+  $("docker-body").innerHTML = html;
 }
 
 function renderImages(list) {
@@ -1298,9 +1352,64 @@ async function refreshLogs() {
 $("logs-refresh").addEventListener("click", refreshLogs);
 $("logs-close").addEventListener("click", () => { $("docker-logs").hidden = true; logsCtxId = null; });
 
+// ---------- Konteyner terminali (xterm + WebSocket) ----------
+let termState = null;
+function openTerminal(id, name) {
+  if (!session) { toast("Önce bir sunucuya bağlan.", true); return; }
+  if (typeof Terminal === "undefined") { toast("Terminal bileşeni yüklenemedi.", true); return; }
+  $("term-title").textContent = "⌨ " + name;
+  $("terminal-modal").hidden = false;
+  const host = $("term-host");
+  host.innerHTML = "";
+
+  const term = new Terminal({
+    cursorBlink: true,
+    fontSize: 13,
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+    theme: { background: "#0b1020", foreground: "#e6e9ef" },
+  });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(host);
+  try { fit.fit(); } catch (_) {}
+  term.focus();
+
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url = `${proto}://${location.host}/api/terminal?session=${encodeURIComponent(session)}` +
+    `&id=${encodeURIComponent(id)}&cols=${term.cols}&rows=${term.rows}`;
+  const ws = new WebSocket(url);
+  ws.binaryType = "arraybuffer";
+
+  const sendResize = () => { if (ws.readyState === 1) ws.send(JSON.stringify({ r: [term.cols, term.rows] })); };
+  ws.onopen = () => sendResize();
+  ws.onmessage = (ev) => {
+    if (typeof ev.data === "string") term.write(ev.data);
+    else term.write(new Uint8Array(ev.data));
+  };
+  ws.onclose = () => term.write("\r\n\x1b[90m[bağlantı kapandı]\x1b[0m\r\n");
+  ws.onerror = () => term.write("\r\n\x1b[31m[bağlantı hatası]\x1b[0m\r\n");
+
+  term.onData((d) => { if (ws.readyState === 1) ws.send(JSON.stringify({ i: d })); });
+  const onResize = () => { try { fit.fit(); sendResize(); } catch (_) {} };
+  window.addEventListener("resize", onResize);
+
+  termState = { term, ws, onResize };
+}
+function closeTerminal() {
+  if (termState) {
+    window.removeEventListener("resize", termState.onResize);
+    try { termState.ws.close(); } catch (_) {}
+    try { termState.term.dispose(); } catch (_) {}
+    termState = null;
+  }
+  $("terminal-modal").hidden = true;
+}
+$("term-close").addEventListener("click", closeTerminal);
+
 // onclick içinden erişim için global'e aç
 window.dockerAction = dockerAction;
 window.dockerLogs = dockerLogs;
+window.openTerminal = openTerminal;
 
 $("check-all").addEventListener("change", (e) => {
   $("file-area").querySelectorAll(".row-check").forEach((cb) => {

@@ -149,9 +149,9 @@ body {
   z-index: 500;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
   gap: 56px;
-  padding: 32px;
+  padding: 32px 48px;
   background: radial-gradient(1200px 600px at 20% -10%, #3b82f6 0%, transparent 60%),
     radial-gradient(900px 500px at 100% 100%, #1e40af 0%, transparent 55%),
     linear-gradient(135deg, #1e3a8a, #0b1f4d);
@@ -193,14 +193,14 @@ body {
 .login-card {
   position: relative;
   background: var(--panel);
-  width: 430px;
+  width: 340px;
   max-width: 92vw;
-  padding: 34px;
-  border-radius: 18px;
+  padding: 22px 24px;
+  border-radius: 16px;
   box-shadow: 0 30px 80px rgba(0, 0, 0, .45);
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   animation: pop .35s cubic-bezier(.2, .9, .3, 1.2);
 }
 
@@ -217,8 +217,9 @@ body {
 }
 
 .login-card h1 {
-  font-size: 23px;
+  font-size: 19px;
   letter-spacing: -.3px;
+  margin: 0;
 }
 
 .ver {
@@ -1978,3 +1979,35 @@ tr.dir .fname {
 }
 .srv-cell:hover .srv-pick, .srv-cell.picked .srv-pick { opacity: 1; }
 .srv-cell.picked .srv-tile { border-color: #4f8cff; background: rgba(79, 140, 255, .14); }
+
+/* ---- Grup aç/kapa (collapse) ---- */
+.srv-group-name { cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 4px; }
+.srv-chevron { font-size: 10px; transition: transform .15s; display: inline-block; }
+.srv-group.collapsed .srv-chevron { transform: rotate(-90deg); }
+
+/* ---- Docker: compose grupları ---- */
+.dk-group { margin-bottom: 18px; }
+.dk-group-head {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600;
+  padding: 8px 12px; margin-bottom: 2px;
+  color: var(--text, #e6e9ef);
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+}
+
+/* ---- Konteyner terminali ---- */
+.term-box {
+  width: min(900px, 94vw);
+  height: min(600px, 80vh);
+  display: flex;
+  flex-direction: column;
+}
+.term-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  background: #0b1020;
+  padding: 8px 10px;
+  border-radius: 0 0 12px 12px;
+  overflow: hidden;
+}
+.term-host .xterm { height: 100%; }

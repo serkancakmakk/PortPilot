@@ -6,6 +6,7 @@
   <title>PortPilot</title>
   <link rel="icon" type="image/svg+xml" href="logo.svg" />
   <link rel="apple-touch-icon" href="icon.png" />
+  <link rel="stylesheet" href="vendor/xterm.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -199,6 +200,18 @@
     </div>
   </div>
 
+  <!-- Konteyner terminali -->
+  <div id="terminal-modal" class="editor-overlay" hidden>
+    <div class="editor-box term-box">
+      <div class="editor-head">
+        <span class="editor-title" id="term-title">⌨ Terminal</span>
+        <div class="spacer"></div>
+        <button id="term-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
+      </div>
+      <div id="term-host" class="term-host"></div>
+    </div>
+  </div>
+
   <!-- Docker log görüntüleyici -->
   <div id="docker-logs" class="editor-overlay" hidden>
     <div class="editor-box">
@@ -258,6 +271,8 @@
     <div class="upload-progress-track"><div class="upload-progress-bar" id="upload-progress-bar"></div></div>
   </div>
 
+  <script src="vendor/xterm.js"></script>
+  <script src="vendor/xterm-addon-fit.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
