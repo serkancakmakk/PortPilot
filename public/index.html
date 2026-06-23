@@ -62,12 +62,16 @@
         </label>
       </div>
 
-      <label class="save-row">
-        <input type="checkbox" id="save-server" />
-        <span>Bu sunucuyu kaydet</span>
-        <input type="text" id="save-name" placeholder="Kayıt adı (opsiyonel)" autocomplete="off" />
-        <input type="text" id="save-group" placeholder="Grup (opsiyonel)" autocomplete="off" />
-      </label>
+      <div class="save-row">
+        <label class="save-check">
+          <input type="checkbox" id="save-server" />
+          <span>Bu sunucuyu kaydet</span>
+        </label>
+        <div class="save-fields">
+          <input type="text" id="save-name" placeholder="Kayıt adı (opsiyonel)" autocomplete="off" />
+          <input type="text" id="save-group" placeholder="Grup (opsiyonel)" autocomplete="off" />
+        </div>
+      </div>
       <label class="save-pass-row" id="save-pass-row" hidden>
         <input type="checkbox" id="save-pass" />
         <span>Parolayı/anahtarı da bu cihazda sakla (kolay giriş için)</span>
@@ -103,6 +107,7 @@
 
       <div class="side-label" style="margin-top:14px">Araçlar</div>
       <nav class="quick">
+        <a id="btn-terminal"><span class="q-ico" data-icon="terminal"></span> Sunucu Terminali</a>
         <a id="btn-docker"><span class="q-ico" data-icon="container"></span> Docker Yönetimi</a>
         <a id="btn-update" hidden><span class="q-ico" data-icon="refresh"></span> Güncellemeleri Denetle<span class="upd-dot" hidden></span></a>
       </nav>
@@ -154,10 +159,14 @@
 
       <div id="empty" class="empty" hidden>Bu klasör boş</div>
 
-      <!-- Tıklayınca dosya seçtiren / sürükle-bırak alanı -->
-      <div id="dropzone" class="dropzone" title="Dosya yüklemek için tıklayın veya sürükleyin">
+      <!-- Tıklayınca dosya/klasör seçtiren / sürükle-bırak alanı -->
+      <div id="dropzone" class="dropzone" title="Dosya veya klasör yükle">
         <div class="dz-icon" data-icon="upload"></div>
-        <div class="dz-text"><b>Dosya yüklemek için tıklayın</b><br><span>ya da dosyaları buraya sürükleyip bırakın</span></div>
+        <div class="dz-text"><b>Yüklemek için seç</b><br><span>ya da dosya/klasörleri buraya sürükleyip bırakın (birden çok klasör desteklenir)</span></div>
+        <div class="dz-actions">
+          <button type="button" id="dz-files" class="tbtn"><span class="nav-ico-wrap" data-icon="upload"></span> Dosya Seç</button>
+          <button type="button" id="dz-folder" class="tbtn"><span class="nav-ico-wrap" data-icon="folder-plus"></span> Klasör Seç</button>
+        </div>
       </div>
 
       <div id="drop-hint" class="drop-hint" hidden>Dosyaları buraya bırakın</div>
