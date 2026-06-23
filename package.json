@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "basic-ftp": "^5.3.1",
+    "electron-updater": "^6.8.9",
     "express": "^4.19.2",
     "multer": "^2.2.0",
     "ssh2": "^1.15.0"
@@ -56,6 +57,13 @@
       "target": [
         {
           "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "x64",
             "arm64"

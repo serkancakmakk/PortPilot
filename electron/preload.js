@@ -7,6 +7,12 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("desktop", {
   isDesktop: true,
   version: () => ipcRenderer.invoke("app:version"),
-  checkUpdate: () => ipcRenderer.invoke("app:check-update"),
+  checkUpdate: (opts) => ipcRenderer.invoke("app:check-update", opts || {}),
   openExternal: (url) => ipcRenderer.invoke("app:open-external", url),
+  // Güncelleme olaylarını dinle (available/downloading/downloaded/latest/error)
+  onUpdate: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on("update:event", handler);
+    return () => ipcRenderer.removeListener("update:event", handler);
+  },
 });

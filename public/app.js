@@ -1242,34 +1242,82 @@ function prettyName(it) {
     btn.hidden = false;
     btn.addEventListener("click", () => runUpdateCheck(false));
   }
+
+  // Güncelleme olaylarını dinle (indirme ilerlemesi vb. — paketli uygulamada)
+  if (window.desktop.onUpdate) window.desktop.onUpdate(handleUpdateEvent);
+
   // Açılışta sessizce denetle (varsa nokta ile işaretle)
   setTimeout(() => runUpdateCheck(true), 2500);
 })();
 
+let updateChecking = false;
+function setUpdateLabel(text) {
+  const btn = $("btn-update");
+  if (!btn) return;
+  // İkon + güncelleme noktası dışındaki metni güncelle
+  btn.childNodes.forEach((n) => { if (n.nodeType === 3) n.textContent = ""; });
+  btn.insertBefore(document.createTextNode(" " + text), btn.querySelector(".upd-dot"));
+}
+
 async function runUpdateCheck(silent) {
   if (!window.desktop || !window.desktop.checkUpdate) return;
   const btn = $("btn-update");
-  const dot = btn && btn.querySelector(".upd-dot");
-  if (btn && !silent) btn.classList.add("checking");
+  if (updateChecking) return;
+  updateChecking = true;
+  if (btn && !silent) { btn.classList.add("checking"); setUpdateLabel("Denetleniyor…"); }
   try {
-    const r = await window.desktop.checkUpdate();
-    if (!r || !r.ok) {
-      if (!silent) toast("Güncelleme denetlenemedi: " + ((r && r.error) || "ağ hatası"), true);
+    const r = await window.desktop.checkUpdate({ silent });
+    // Geliştirme modu (paketlenmemiş): indirip kuramayız, sayfayı aç
+    if (r && r.packaged === false) {
+      if (!r.ok) { if (!silent) toast("Güncelleme denetlenemedi: " + (r.error || "ağ hatası"), true); return; }
+      if (r.hasUpdate && !silent) {
+        const go = confirm(`Yeni sürüm var: v${r.latest} (yüklü: v${r.current})\n\nİndirme sayfasını açmak ister misin?`);
+        if (go) window.desktop.openExternal(r.url);
+      } else if (!r.hasUpdate && !silent) {
+        toast(`En güncel sürümdesin (v${r.current}).`);
+      }
       return;
     }
-    if (r.hasUpdate) {
-      if (dot) dot.hidden = false;
-      if (btn) btn.classList.add("has-update");
-      const go = confirm(
-        `🎉 Yeni sürüm var: v${r.latest}\n(yüklü sürüm: v${r.current})\n\nİndirme sayfasını açmak ister misin?`
-      );
-      if (go) window.desktop.openExternal(r.url);
-    } else {
-      if (dot) dot.hidden = true;
-      if (btn) btn.classList.remove("has-update");
-      if (!silent) toast(`En güncel sürümdesin (v${r.current}).`);
-    }
+    // Paketli: sonuç update:event ile gelecek; hata varsa burada bildir
+    if (r && !r.ok && !silent) toast("Güncelleme denetlenemedi: " + (r.error || "hata"), true);
   } finally {
-    if (btn) btn.classList.remove("checking");
+    updateChecking = false;
+    if (btn && !silent) btn.classList.remove("checking");
+    setUpdateLabel("Güncellemeleri Denetle");
+  }
+}
+
+// Paketli uygulamada electron-updater olayları
+function handleUpdateEvent(p) {
+  const btn = $("btn-update");
+  const dot = btn && btn.querySelector(".upd-dot");
+  if (!p || !btn) return;
+  switch (p.state) {
+    case "available":
+      if (dot) dot.hidden = false;
+      btn.classList.add("has-update");
+      break;
+    case "downloading":
+      btn.classList.add("checking");
+      setUpdateLabel(`İndiriliyor… %${p.percent || 0}`);
+      break;
+    case "downloaded":
+      btn.classList.remove("checking");
+      btn.classList.add("has-update");
+      if (dot) dot.hidden = false;
+      setUpdateLabel("Yeniden başlatınca kurulacak");
+      toast(`v${p.version} indirildi — kurmak için yeniden başlat.`);
+      break;
+    case "latest":
+      if (dot) dot.hidden = true;
+      btn.classList.remove("has-update", "checking");
+      setUpdateLabel("Güncellemeleri Denetle");
+      if (!p.silent) toast("En güncel sürümdesin.");
+      break;
+    case "error":
+      btn.classList.remove("checking");
+      setUpdateLabel("Güncellemeleri Denetle");
+      if (!p.silent) toast("Güncelleme hatası: " + (p.error || "bilinmiyor"), true);
+      break;
   }
 }

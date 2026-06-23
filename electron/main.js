@@ -4,8 +4,9 @@
 // Express sunucusunu yerel bir portta başlatır ve bir pencere içinde açar.
 // macOS · Windows · Linux için electron-builder ile paketlenir.
 
-const { app, BrowserWindow, Menu, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require("electron");
 const path = require("path");
+const { autoUpdater } = require("electron-updater");
 
 // Kayıtlı sunucular paket içindeki salt-okunur asar'a değil, yazılabilir
 // kullanıcı veri klasörüne kaydedilsin. (server.js require edilmeden ÖNCE ayarla.)
@@ -62,11 +63,85 @@ async function checkForUpdate() {
   }
 }
 
+// ---- Otomatik güncelleme (electron-updater) ----
+// Paketlenmiş uygulamada güncellemeyi indirip kurar. Geliştirme (npm) modunda
+// app-update.yml bulunmadığından electron-updater çalışmaz; GitHub API ile yalnızca bilgi veririz.
+let updaterWired = false;
+let lastCheckSilent = false;
+
+function sendUpdate(payload) {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("update:event", payload);
+  }
+}
+
+function wireAutoUpdater() {
+  if (updaterWired) return;
+  updaterWired = true;
+  autoUpdater.autoDownload = false;          // indirmeyi kullanıcı onaylasın
+  autoUpdater.autoInstallOnAppQuit = true;   // indirildiyse çıkışta sessizce kur
+
+  autoUpdater.on("update-available", async (info) => {
+    sendUpdate({ state: "available", version: info.version });
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      buttons: ["İndir", "Daha sonra"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "Güncelleme var",
+      message: `Yeni sürüm hazır: v${info.version}`,
+      detail: "Şimdi indirilsin mi? İndikten sonra tek tıkla kurabilirsin.",
+    });
+    if (response === 0) {
+      sendUpdate({ state: "downloading", percent: 0 });
+      autoUpdater.downloadUpdate().catch((e) => sendUpdate({ state: "error", error: String(e && e.message || e) }));
+    }
+  });
+
+  autoUpdater.on("update-not-available", () => sendUpdate({ state: "latest", silent: lastCheckSilent }));
+  autoUpdater.on("download-progress", (p) => sendUpdate({ state: "downloading", percent: Math.round(p.percent || 0) }));
+
+  autoUpdater.on("update-downloaded", async (info) => {
+    sendUpdate({ state: "downloaded", version: info.version });
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      buttons: ["Yeniden başlat ve kur", "Sonra"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "Güncelleme indirildi",
+      message: `v${info.version} kurulmaya hazır`,
+      detail: "Kurulum için uygulama şimdi yeniden başlatılsın mı?",
+    });
+    if (response === 0) setImmediate(() => autoUpdater.quitAndInstall());
+  });
+
+  autoUpdater.on("error", (err) => {
+    sendUpdate({ state: "error", error: String(err && err.message || err), silent: lastCheckSilent });
+  });
+}
+
 // Renderer (web arayüzü) ile köprü
 ipcMain.handle("app:version", () => app.getVersion());
-ipcMain.handle("app:check-update", () => checkForUpdate());
 ipcMain.handle("app:open-external", (_e, url) => {
   if (typeof url === "string" && /^https?:\/\//.test(url)) shell.openExternal(url);
+});
+
+// Güncelleme denetle: paketliyse electron-updater, değilse GitHub API bilgisi
+ipcMain.handle("app:check-update", async (_e, opts) => {
+  const silent = !!(opts && opts.silent);
+  lastCheckSilent = silent;
+  if (!app.isPackaged) {
+    // Geliştirme modu: yalnızca bilgi (indirip kuramayız)
+    const r = await checkForUpdate();
+    return { ...r, packaged: false };
+  }
+  try {
+    wireAutoUpdater();
+    autoUpdater.checkForUpdates(); // sonuç olayları (update:event) ile akar
+    return { ok: true, packaged: true, current: app.getVersion() };
+  } catch (e) {
+    return { ok: false, packaged: true, current: app.getVersion(), error: e.message };
+  }
 });
 
 async function createWindow() {
