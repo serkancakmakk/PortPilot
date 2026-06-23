@@ -95,15 +95,26 @@ jobs:
       - name: Bağımlılıkları yükle
         run: npm ci
 
+      # macOS: sertifika gizli anahtarı VARSA imzalama ortamını hazırla.
+      # (Değişkenleri boş string '' ile tanımlamak electron-builder'ı bozuyordu;
+      #  bu yüzden yalnızca gerçek değer varken $GITHUB_ENV'e yazıyoruz.)
+      - name: macOS imzalama değişkenleri
+        if: matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK != ''
+        run: |
+          {
+            echo "CSC_LINK=${{ secrets.MAC_CSC_LINK }}"
+            echo "CSC_KEY_PASSWORD=${{ secrets.MAC_CSC_KEY_PASSWORD }}"
+            echo "APPLE_ID=${{ secrets.APPLE_ID }}"
+            echo "APPLE_APP_SPECIFIC_PASSWORD=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}"
+            echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}"
+          } >> "$GITHUB_ENV"
+
+      # macOS: sertifika yoksa imzalamayı tamamen kapat (notarization da atlanır)
+      - name: macOS imzasız mod
+        if: matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK == ''
+        run: echo "CSC_IDENTITY_AUTO_DISCOVERY=false" >> "$GITHUB_ENV"
+
       - name: Derle ve release'e yükle
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS kod imzalama + notarization (yalnız mac runner'da tanımlı).
-          # Sertifika gizli anahtarı yoksa imzalama/notarization temiz şekilde atlanır.
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ (matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK != '') && 'true' || 'false' }}
-          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.MAC_CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.MAC_CSC_KEY_PASSWORD || '' }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npx electron-builder --publish always
