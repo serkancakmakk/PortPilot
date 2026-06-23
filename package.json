@@ -1,6 +1,6 @@
 {
   "name": "portpilot",
-  "version": "1.0.1",
+  "version": "1.0.5",
   "description": "PortPilot — masaüstü ve tarayıcıdan kullanılan, Windows gezgini benzeri çok sunuculu SFTP dosya yöneticisi ve Docker paneli",
   "main": "electron/main.js",
   "type": "commonjs",
