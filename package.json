@@ -38,6 +38,7 @@
       "electron/**/*",
       "server.js",
       "lib/**/*",
+      "routes/**/*",
       "public/**/*"
     ],
     "extraMetadata": {

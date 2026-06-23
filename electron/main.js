@@ -8,6 +8,10 @@ const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require("electron")
 const path = require("path");
 const { autoUpdater } = require("electron-updater");
 
+// Linux'ta paketlenmiş uygulamada chrome-sandbox çoğu kez SUID/izin sorunundan
+// uygulamanın hiç açılmamasına yol açar; bu platformda sandbox'ı kapat.
+if (process.platform === "linux") app.commandLine.appendSwitch("no-sandbox");
+
 // Kayıtlı sunucular paket içindeki salt-okunur asar'a değil, yazılabilir
 // kullanıcı veri klasörüne kaydedilsin. (server.js require edilmeden ÖNCE ayarla.)
 process.env.PORTPILOT_DATA_DIR = app.getPath("userData");
@@ -146,8 +150,19 @@ ipcMain.handle("app:check-update", async (_e, opts) => {
 
 async function createWindow() {
   // 0 → işletim sistemi boş bir port seçsin (çakışma olmaz)
-  const { server, port } = await startServer(0);
-  httpServer = server;
+  let port;
+  try {
+    const started = await startServer(0);
+    httpServer = started.server;
+    port = started.port;
+  } catch (e) {
+    dialog.showErrorBox(
+      "PortPilot başlatılamadı",
+      "Yerel sunucu başlatılamadı:\n\n" + (e && e.stack || e) + "\n\nLütfen bu hatayı bildirin."
+    );
+    app.quit();
+    return;
+  }
 
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -172,6 +187,11 @@ async function createWindow() {
   });
 
   mainWindow.loadURL(`http://localhost:${port}`);
+
+  mainWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
+    if (code === -3) return; // ERR_ABORTED — genelde zararsız
+    dialog.showErrorBox("Arayüz yüklenemedi", `Hata ${code}: ${desc}\n${url}`);
+  });
 
   // Sağ tık menüsü: kes/kopyala/yapıştır/tümünü seç (her platformda çalışır)
   mainWindow.webContents.on("context-menu", (_e, params) => {
@@ -218,7 +238,10 @@ function buildMenu() {
 
 app.whenReady().then(() => {
   buildMenu();
-  createWindow();
+  createWindow().catch((e) => {
+    dialog.showErrorBox("PortPilot hatası", String(e && e.stack || e));
+    app.quit();
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
