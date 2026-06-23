@@ -832,6 +832,7 @@ app.post("/api/servers", (req, res) => {
     password: b.password || "",
     privateKey: b.privateKey || "",
     passphrase: b.passphrase || "",
+    group: (b.group || "").toString().trim(),
   };
   const idx = servers.findIndex(
     (s) =>
@@ -850,6 +851,26 @@ app.post("/api/servers", (req, res) => {
 
 app.delete("/api/servers/:id", (req, res) => {
   const servers = readServers().filter((s) => s.id !== req.params.id);
+  if (!writeServers(servers))
+    return res.status(500).json({ error: "Silinemedi." });
+  res.json({ ok: true, servers });
+});
+
+// Toplu silme: { ids: [...] }  veya  { group: "Grup adı" }  veya  { all: true }
+app.post("/api/servers/bulk-delete", (req, res) => {
+  const b = req.body || {};
+  let servers = readServers();
+  if (b.all) {
+    servers = [];
+  } else if (Array.isArray(b.ids) && b.ids.length) {
+    const del = new Set(b.ids.map(String));
+    servers = servers.filter((s) => !del.has(String(s.id)));
+  } else if (typeof b.group === "string") {
+    const g = b.group.trim();
+    servers = servers.filter((s) => (s.group || "").trim() !== g);
+  } else {
+    return res.status(400).json({ error: "Silinecek öğe belirtilmedi." });
+  }
   if (!writeServers(servers))
     return res.status(500).json({ error: "Silinemedi." });
   res.json({ ok: true, servers });

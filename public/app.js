@@ -325,11 +325,14 @@ function maybeSaveServer(body) {
     password: savePass && !isKey ? body.password : "",
     privateKey: savePass && isKey ? body.privateKey : "",
     passphrase: savePass && isKey ? body.passphrase : "",
+    group: $("save-group") ? $("save-group").value.trim() : "",
   };
   api("servers", { method: "POST", json: server })
     .catch((e) => console.warn("Sunucu kaydedilemedi:", e.message));
   return name;
 }
+
+let selectedServerIds = new Set();
 
 async function renderSavedServers() {
   try {
@@ -341,37 +344,116 @@ async function renderSavedServers() {
   const list = $("saved-list");
   wrap.hidden = servers.length === 0;
   list.innerHTML = "";
+  selectedServerIds = new Set();
+
+  // Toplu işlem çubuğu
+  const bar = document.createElement("div");
+  bar.className = "srv-bulk";
+  bar.innerHTML =
+    `<button type="button" id="srv-del-selected" class="srv-bulk-btn danger" hidden>Seçilenleri Sil</button>
+     <button type="button" id="srv-del-all" class="srv-bulk-btn">Tümünü Sil</button>`;
+  list.appendChild(bar);
+
+  const updateBulkBtn = () => {
+    const btn = $("srv-del-selected");
+    btn.hidden = selectedServerIds.size === 0;
+    btn.textContent = `Seçilenleri Sil (${selectedServerIds.size})`;
+  };
+  const bulkDelete = async (json, confirmMsg) => {
+    if (!confirm(confirmMsg)) return;
+    try { await api("servers/bulk-delete", { method: "POST", json }); }
+    catch (e) { toast(e.message, true); }
+    renderSavedServers();
+  };
+
+  // Gruplara ayır (eklenme sırası korunur)
+  const groups = new Map();
   servers.forEach((s) => {
-    const hasCreds = !!(s.password || s.privateKey);
-    // Hâlihazırda bu sunucuya bağlı bir sekme var mı?
-    const online = connections.some(
-      (c) => c.info.host === s.host && c.info.username === s.username && String(c.info.port) === String(s.port)
-    );
-    const el = document.createElement("button");
-    el.type = "button";
-    el.className = "srv-tile" + (online ? " online" : "");
-    const protoUp = (s.protocol || "sftp").toUpperCase();
-    el.title = `${protoUp} · ${s.username}@${s.host}:${s.port} • ${s.auth === "key" ? "SSH anahtarı" : "parola"}`;
-    el.innerHTML = `
-      <span class="srv-ico">${computerSVG()}</span>
-      <span class="srv-text">
-        <span class="srv-name"></span>
-        <span class="srv-host"></span>
-      </span>
-      <span class="srv-badge" title="${hasCreds ? "Kimlik bilgisi kayıtlı" : "Bağlanırken parola istenir"}">${hasCreds ? "🔓" : "🔒"}</span>
-      <span class="srv-del" title="Kaydı sil">×</span>`;
-    el.querySelector(".srv-name").textContent = s.name;
-    el.querySelector(".srv-host").textContent = `${protoUp} · ${s.username}@${s.host}:${s.port}`;
-    el.addEventListener("click", () => selectServer(s));
-    el.querySelector(".srv-del").addEventListener("click", async (e) => {
-      e.stopPropagation();
-      if (!confirm(`"${s.name}" kaydı silinsin mi?`)) return;
-      try { await api("servers/" + encodeURIComponent(s.id), { method: "DELETE" }); }
-      catch (err) { toast(err.message, true); }
-      renderSavedServers();
-    });
-    list.appendChild(el);
+    const g = (s.group || "").trim();
+    if (!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(s);
   });
+
+  groups.forEach((items, g) => {
+    const label = g || "Gruplanmamış";
+    const section = document.createElement("div");
+    section.className = "srv-group";
+    const head = document.createElement("div");
+    head.className = "srv-group-head";
+    head.innerHTML = `<span class="srv-group-name">📁 ${escapeHtml(label)} <span class="srv-group-count">${items.length}</span></span>`;
+    const delG = document.createElement("button");
+    delG.type = "button";
+    delG.className = "srv-group-del";
+    delG.textContent = "🗑 Grubu sil";
+    delG.addEventListener("click", () =>
+      bulkDelete(
+        g ? { group: g } : { ids: items.map((x) => x.id) },
+        `"${label}" grubundaki ${items.length} sunucu silinsin mi?`,
+      ),
+    );
+    head.appendChild(delG);
+    section.appendChild(head);
+
+    const inner = document.createElement("div");
+    inner.className = "saved-list";
+    items.forEach((s) => inner.appendChild(buildServerCell(s, updateBulkBtn)));
+    section.appendChild(inner);
+    list.appendChild(section);
+  });
+
+  $("srv-del-all").addEventListener("click", () =>
+    bulkDelete({ all: true }, `TÜM kayıtlı sunucular (${servers.length}) silinsin mi?`),
+  );
+  $("srv-del-selected").addEventListener("click", () => {
+    const ids = [...selectedServerIds];
+    if (ids.length) bulkDelete({ ids }, `${ids.length} sunucu silinsin mi?`);
+  });
+}
+
+// Tek bir kayıtlı sunucu hücresi (seçim kutusu + kart)
+function buildServerCell(s, updateBulkBtn) {
+  const hasCreds = !!(s.password || s.privateKey);
+  const online = connections.some(
+    (c) => c.info.host === s.host && c.info.username === s.username && String(c.info.port) === String(s.port)
+  );
+  const cell = document.createElement("div");
+  cell.className = "srv-cell";
+  const pick = document.createElement("input");
+  pick.type = "checkbox";
+  pick.className = "srv-pick";
+  pick.title = "Toplu silme için seç";
+  pick.addEventListener("click", (e) => e.stopPropagation());
+  pick.addEventListener("change", () => {
+    if (pick.checked) selectedServerIds.add(s.id); else selectedServerIds.delete(s.id);
+    cell.classList.toggle("picked", pick.checked);
+    updateBulkBtn();
+  });
+  const el = document.createElement("button");
+  el.type = "button";
+  el.className = "srv-tile" + (online ? " online" : "");
+  const protoUp = (s.protocol || "sftp").toUpperCase();
+  el.title = `${protoUp} · ${s.username}@${s.host}:${s.port} • ${s.auth === "key" ? "SSH anahtarı" : "parola"}`;
+  el.innerHTML = `
+    <span class="srv-ico">${computerSVG()}</span>
+    <span class="srv-text">
+      <span class="srv-name"></span>
+      <span class="srv-host"></span>
+    </span>
+    <span class="srv-badge" title="${hasCreds ? "Kimlik bilgisi kayıtlı" : "Bağlanırken parola istenir"}">${hasCreds ? "🔓" : "🔒"}</span>
+    <span class="srv-del" title="Kaydı sil">×</span>`;
+  el.querySelector(".srv-name").textContent = s.name;
+  el.querySelector(".srv-host").textContent = `${protoUp} · ${s.username}@${s.host}:${s.port}`;
+  el.addEventListener("click", () => selectServer(s));
+  el.querySelector(".srv-del").addEventListener("click", async (e) => {
+    e.stopPropagation();
+    if (!confirm(`"${s.name}" kaydı silinsin mi?`)) return;
+    try { await api("servers/" + encodeURIComponent(s.id), { method: "DELETE" }); }
+    catch (err) { toast(err.message, true); }
+    renderSavedServers();
+  });
+  cell.appendChild(pick);
+  cell.appendChild(el);
+  return cell;
 }
 
 // ---------- FileZilla içe aktarma (sitemanager.xml) ----------
@@ -407,40 +489,63 @@ function fzServerName(node) {
   return txt.trim();
 }
 
-// sitemanager.xml metnini ayrıştır → sunucu nesneleri
+// Tek bir <Server> düğümünü sunucu nesnesine çevir (grup hariç)
+function fzServerToObj(s) {
+  const get = (tag) => {
+    const el = s.querySelector(":scope > " + tag);
+    return el ? el.textContent.trim() : "";
+  };
+  const host = get("Host");
+  if (!host) return null;
+  const protocol = fzProtocol(get("Protocol"));
+  const passEl = s.querySelector(":scope > Pass");
+  let password = "";
+  if (passEl) {
+    password = passEl.getAttribute("encoding") === "base64"
+      ? b64decode(passEl.textContent.trim())
+      : passEl.textContent.trim();
+  }
+  let username = get("User");
+  const logontype = get("Logontype");
+  if (!username && logontype === "0") username = "anonymous"; // anonim giriş
+  return {
+    name: fzServerName(s) || `${username || "user"}@${host}`,
+    host,
+    port: Number(get("Port")) || (protocol === "sftp" ? 22 : 21),
+    username: username || "anonymous",
+    protocol,
+    auth: "password",
+    password,
+  };
+}
+
+// Bir <Folder> düğümünün doğrudan metni = klasör adı (alt düğümler hariç)
+function fzFolderName(node) {
+  let nm = "";
+  node.childNodes.forEach((n) => { if (n.nodeType === 3) nm += n.textContent; });
+  return nm.trim() || "Klasör";
+}
+
+// Ağacı dolaş: <Folder> → grup yolu (iç içe " / " ile), <Server> → nesne
+function fzWalk(node, path, out) {
+  node.childNodes.forEach((child) => {
+    if (child.nodeType !== 1) return; // yalnızca elemanlar
+    if (child.tagName === "Folder") {
+      fzWalk(child, path.concat(fzFolderName(child)), out);
+    } else if (child.tagName === "Server") {
+      const srv = fzServerToObj(child);
+      if (srv) { srv.group = path.join(" / "); out.push(srv); }
+    }
+  });
+}
+
+// sitemanager.xml metnini ayrıştır → gruplu sunucu nesneleri
 function parseFileZilla(xmlText) {
   const doc = new DOMParser().parseFromString(xmlText, "application/xml");
   if (doc.querySelector("parsererror")) throw new Error("XML okunamadı (geçersiz dosya).");
   const out = [];
-  // <Folder> içinde iç içe olsalar bile tüm <Server> düğümleri
-  doc.querySelectorAll("Server").forEach((s) => {
-    const get = (tag) => {
-      const el = s.querySelector(":scope > " + tag);
-      return el ? el.textContent.trim() : "";
-    };
-    const host = get("Host");
-    if (!host) return;
-    const protocol = fzProtocol(get("Protocol"));
-    const passEl = s.querySelector(":scope > Pass");
-    let password = "";
-    if (passEl) {
-      password = passEl.getAttribute("encoding") === "base64"
-        ? b64decode(passEl.textContent.trim())
-        : passEl.textContent.trim();
-    }
-    let username = get("User");
-    const logontype = get("Logontype");
-    if (!username && logontype === "0") username = "anonymous"; // anonim giriş
-    out.push({
-      name: fzServerName(s) || `${username || "user"}@${host}`,
-      host,
-      port: Number(get("Port")) || (protocol === "sftp" ? 22 : 21),
-      username: username || "anonymous",
-      protocol,
-      auth: "password",
-      password,
-    });
-  });
+  const root = doc.querySelector("Servers") || doc.documentElement;
+  if (root) fzWalk(root, [], out);
   return out;
 }
 
