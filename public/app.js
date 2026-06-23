@@ -1007,20 +1007,80 @@ $("btn-download").addEventListener("click", () => {
 
 $("btn-upload").addEventListener("click", () => $("file-input").click());
 $("dropzone").addEventListener("click", () => $("file-input").click());
-$("file-input").addEventListener("change", (e) => uploadFiles(e.target.files));
+// Dosya seçimi: webkitRelativePath varsa (klasör seçimi) onu göreli yol olarak kullan
+$("file-input").addEventListener("change", (e) => {
+  const entries = Array.from(e.target.files).map((f) => ({ file: f, rel: f.webkitRelativePath || f.name }));
+  uploadEntries(entries);
+});
+if ($("folder-input")) {
+  $("btn-upload-folder") && $("btn-upload-folder").addEventListener("click", () => $("folder-input").click());
+  $("folder-input").addEventListener("change", (e) => {
+    const entries = Array.from(e.target.files).map((f) => ({ file: f, rel: f.webkitRelativePath || f.name }));
+    uploadEntries(entries);
+    $("folder-input").value = "";
+  });
+}
 
-async function uploadFiles(fileList) {
-  if (!fileList || !fileList.length) return;
+// {file, rel} listesini paralel/akışlı olarak sunucuya yükler, ilerleme gösterir.
+async function uploadEntries(entries) {
+  entries = (entries || []).filter((e) => e && e.file);
+  if (!entries.length) { toast("Yüklenecek dosya bulunamadı.", true); return; }
   const fd = new FormData();
   fd.append("path", cwd);
-  for (const f of fileList) fd.append("files", f);
-  showLoading(true);
+  for (const { file, rel } of entries) {
+    fd.append("files", file);
+    fd.append("paths", rel || file.name);
+  }
+  const targetDir = cwd;
+  setUploadProgress(0, entries.length);
   try {
-    const r = await api("upload", { method: "POST", body: fd });
-    toast(r.count + " dosya yüklendi");
-    navigate(cwd, false);
-  } catch (e) { toast(e.message, true); }
-  finally { showLoading(false); $("file-input").value = ""; }
+    const r = await uploadWithProgress(fd);
+    setUploadProgress(null);
+    if (r.failed) toast(`${r.count} yüklendi, ${r.failed} başarısız: ${r.error}`, true);
+    else toast(r.count + " dosya yüklendi");
+    if (cwd === targetDir) navigate(cwd, false);
+  } catch (e) {
+    setUploadProgress(null);
+    toast(e.message, true);
+  } finally {
+    $("file-input").value = "";
+  }
+}
+
+// XHR ile yükleme: yükleme ilerlemesini (%) raporlar.
+function uploadWithProgress(formData) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/upload");
+    if (session) xhr.setRequestHeader("x-session", session);
+    xhr.upload.onprogress = (ev) => {
+      if (ev.lengthComputable) setUploadProgress(ev.loaded / ev.total);
+    };
+    xhr.onload = () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText || "{}"); } catch (_) {}
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(data);
+      if (xhr.status === 401) logout();
+      reject(new Error(data.error || "Yükleme hatası (" + xhr.status + ")"));
+    };
+    xhr.onerror = () => reject(new Error("Sunucuya ulaşılamadı."));
+    xhr.send(formData);
+  });
+}
+
+// İlerleme göstergesi. frac: 0..1 veya null (gizle). count: dosya sayısı (başlangıçta).
+function setUploadProgress(frac, count) {
+  const box = $("upload-progress");
+  if (!box) { showLoading(frac !== null); return; }
+  if (frac === null) { box.hidden = true; return; }
+  box.hidden = false;
+  const pct = Math.round((frac || 0) * 100);
+  const bar = $("upload-progress-bar");
+  const label = $("upload-progress-label");
+  if (bar) bar.style.width = pct + "%";
+  if (label) label.textContent = count != null
+    ? `${count} dosya yükleniyor… %${pct}`
+    : `Yükleniyor… %${pct}`;
 }
 
 // Sürükle-bırak yükleme (tüm pencerede, derinlik sayacı ile titremesiz)
@@ -1045,16 +1105,60 @@ window.addEventListener("dragleave", (e) => {
   dragDepth = Math.max(0, dragDepth - 1);
   if (dragDepth === 0) { $("drop-hint").hidden = true; $("dropzone").classList.remove("dragging"); }
 });
-window.addEventListener("drop", (e) => {
+window.addEventListener("drop", async (e) => {
   if (!explorerActive()) return;
   e.preventDefault();
   dragDepth = 0;
   $("drop-hint").hidden = true;
   $("dropzone").classList.remove("dragging");
-  const files = e.dataTransfer && e.dataTransfer.files;
-  if (files && files.length) uploadFiles(files);
+  const dt = e.dataTransfer;
+  if (!dt) return;
+
+  // Klasör sürüklemeyi de destekle: webkitGetAsEntry ile dizinleri özyinelemeli tara.
+  const items = dt.items ? Array.from(dt.items) : [];
+  const canTraverse = items.length && typeof items[0].webkitGetAsEntry === "function";
+  if (canTraverse) {
+    const roots = items
+      .map((it) => (it.kind === "file" ? it.webkitGetAsEntry() : null))
+      .filter(Boolean);
+    if (roots.length) {
+      setUploadProgress(0); // klasör taranırken kullanıcıyı oyalama
+      try {
+        const entries = [];
+        for (const root of roots) await walkEntry(root, "", entries);
+        setUploadProgress(null);
+        if (entries.length) return uploadEntries(entries);
+      } catch (_) { setUploadProgress(null); }
+    }
+  }
+  // Geri dönüş: düz dosya listesi
+  const files = dt.files;
+  if (files && files.length) uploadEntries(Array.from(files).map((f) => ({ file: f, rel: f.name })));
   else toast("Sürüklenen öğede yüklenebilir dosya yok.", true);
 });
+
+// FileSystemEntry ağacını dolaşıp {file, rel} listesi üretir (klasör yapısını korur).
+function walkEntry(entry, prefix, out) {
+  return new Promise((resolve) => {
+    if (entry.isFile) {
+      entry.file(
+        (file) => { out.push({ file, rel: prefix + entry.name }); resolve(); },
+        () => resolve()
+      );
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const dirPrefix = prefix + entry.name + "/";
+      const readBatch = () => {
+        reader.readEntries(async (batch) => {
+          if (!batch.length) return resolve();
+          for (const child of batch) await walkEntry(child, dirPrefix, out);
+          readBatch(); // readEntries parça parça döner; boş gelene dek tekrarla
+        }, () => resolve());
+      };
+      readBatch();
+    } else resolve();
+  });
+}
 
 // ---------- Sağ tık menüsü ----------
 const menu = $("context-menu");

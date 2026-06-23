@@ -2,6 +2,7 @@ const express = require("express");
 const multer = require("multer");
 const crypto = require("crypto");
 const path = require("path");
+const os = require("os");
 const fs = require("fs");
 const { connectRemote } = require("./lib/remote-fs");
 
@@ -11,7 +12,29 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-const upload = multer({ storage: multer.memoryStorage() });
+// Yüklemeler diske (geçici klasöre) akıtılır; tüm dosyalar RAM'e doldurulmaz.
+// Böylece büyük dosyalar ve klasörler bellek şişirmeden yüklenir.
+const UPLOAD_TMP = path.join(os.tmpdir(), "serkanzilla-uploads");
+try { fs.mkdirSync(UPLOAD_TMP, { recursive: true }); } catch (_) {}
+const upload = multer({ dest: UPLOAD_TMP });
+
+// Aynı anda kaç dosya yüklensin (SFTP'de gerçek paralellik, FTP'de güvenli sıra)
+const UPLOAD_CONCURRENCY = 4;
+
+// Bir listeyi sınırlı eşzamanlılıkla işler; toplanan hataları döndürür.
+async function runPool(items, limit, worker) {
+  const errors = [];
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      try { await worker(items[idx]); }
+      catch (e) { errors.push({ item: items[idx], error: e }); }
+    }
+  });
+  await Promise.all(workers);
+  return errors;
+}
 
 // token -> { fs, info, lastUsed }  (fs: protokolden bağımsız uzak dosya sistemi)
 const sessions = new Map();
@@ -328,23 +351,75 @@ app.post("/api/save", async (req, res) => {
   }
 });
 
-// ---- Yükle ----
+// ---- Yükle (paralel + klasör/iç içe yol desteği) ----
+// Klasör yüklemede istemci her dosya için bir göreli yol ("paths") gönderir
+// (ör. "proje/src/index.js"). Yoksa dosya adı (originalname) kullanılır.
 app.post("/api/upload", upload.array("files"), async (req, res) => {
   const s = getSession(req, res);
-  if (!s) return;
+  if (!s) {
+    cleanupTemps(req.files);
+    return;
+  }
   const dir = resolveRemote("/", req.body.path || "/");
   const files = req.files || [];
   if (!files.length) return res.status(400).json({ error: "Dosya seçilmedi." });
+
+  // Göreli yollar: multer dosya sırasını korur, paths alanı da aynı sırada gelir.
+  let rels = req.body.paths;
+  if (rels === undefined) rels = [];
+  else if (!Array.isArray(rels)) rels = [rels];
+
+  // Her dosyanın hedef (uzak) yolunu hesapla. Yol kaçışlarını temizle.
+  const jobs = files.map((f, i) => {
+    const rel = (rels[i] || f.originalname || "").replace(/\\/g, "/");
+    const safe = rel.split("/").filter((p) => p && p !== "." && p !== "..").join("/");
+    return { file: f, dest: resolveRemote(dir, safe || f.originalname) };
+  });
+
   try {
-    for (const f of files) {
-      const dest = path.posix.join(dir, f.originalname);
-      await s.fs.uploadFrom(f.buffer, dest);
+    // 1) Gerekli tüm üst klasörleri önce oluştur (yarış durumunu önlemek için sıralı).
+    const dirsNeeded = new Set();
+    for (const j of jobs) {
+      let d = path.posix.dirname(j.dest);
+      while (d && d.length > dir.length && !dirsNeeded.has(d)) {
+        dirsNeeded.add(d);
+        d = path.posix.dirname(d);
+      }
     }
-    res.json({ ok: true, count: files.length });
+    const sortedDirs = [...dirsNeeded].sort((a, b) => a.length - b.length);
+    for (const d of sortedDirs) {
+      try { await s.fs.mkdir(d); } catch (_) { /* zaten var olabilir */ }
+    }
+
+    // 2) Dosyaları sınırlı eşzamanlılıkla, akış olarak yükle.
+    const errors = await runPool(jobs, UPLOAD_CONCURRENCY, async (j) => {
+      const rs = fs.createReadStream(j.file.path);
+      try { await s.fs.uploadStream(rs, j.dest); }
+      finally { try { rs.destroy(); } catch (_) {} }
+    });
+
+    if (errors.length) {
+      const first = errors[0];
+      return res.status(400).json({
+        error: `${errors.length} dosya yüklenemedi (ör. ${path.posix.basename(first.item.dest)}: ${first.error.message})`,
+        count: jobs.length - errors.length,
+        failed: errors.length,
+      });
+    }
+    res.json({ ok: true, count: jobs.length });
   } catch (err) {
     res.status(400).json({ error: "Yükleme hatası: " + err.message });
+  } finally {
+    cleanupTemps(files);
   }
 });
+
+// Geçici yüklenen dosyaları diskten temizle.
+function cleanupTemps(files) {
+  for (const f of files || []) {
+    fs.unlink(f.path, () => {});
+  }
+}
 
 // ---- Yeni klasör ----
 app.post("/api/mkdir", async (req, res) => {

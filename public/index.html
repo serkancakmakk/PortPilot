@@ -123,7 +123,9 @@
       <button id="btn-newfolder" class="tbtn"><span class="nav-ico-wrap" data-icon="folder-plus"></span> Yeni Klasör</button>
       <button id="btn-download" class="tbtn" title="Seçili dosya/klasörü bilgisayarına indir"><span class="nav-ico-wrap" data-icon="download"></span> İndir</button>
       <button id="btn-upload" class="tbtn primary"><span class="nav-ico-wrap" data-icon="upload"></span> Yükle</button>
+      <button id="btn-upload-folder" class="tbtn" title="Tüm klasörü (alt klasörlerle) yükle"><span class="nav-ico-wrap" data-icon="folder-plus"></span> Klasör Yükle</button>
       <input type="file" id="file-input" multiple hidden />
+      <input type="file" id="folder-input" webkitdirectory directory multiple hidden />
       <span class="conn-info" id="conn-info"></span>
     </div>
 
@@ -208,6 +210,12 @@
   <div id="context-menu" class="context-menu" hidden></div>
 
   <div id="loading" class="loading" hidden><div class="spinner"></div></div>
+
+  <!-- Yükleme ilerleme çubuğu -->
+  <div id="upload-progress" class="upload-progress" hidden>
+    <div class="upload-progress-label" id="upload-progress-label">Yükleniyor…</div>
+    <div class="upload-progress-track"><div class="upload-progress-bar" id="upload-progress-bar"></div></div>
+  </div>
 
   <script src="app.js"></script>
 </body>
