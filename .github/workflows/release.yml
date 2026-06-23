@@ -166,3 +166,68 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --publish always
+
+      # Linux: pacman paketlerini bir sonraki iş (arch-repo) için sakla
+      - name: Pacman paketlerini sakla (artifact)
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pacman-packages
+          path: dist/*.pacman
+          if-no-files-found: ignore
+          retention-days: 1
+
+  # 3) Pacman deposunu üret ve sabit 'arch-repo' release'inde yayımla.
+  #    Kullanıcı /etc/pacman.conf'a şunu ekleyip `pacman -Syu serkanzilla` ile kurar/günceller:
+  #      [serkanzilla]
+  #      SigLevel = Optional TrustAll
+  #      Server = https://github.com/<owner>/<repo>/releases/download/arch-repo
+  arch-repo:
+    needs: [version, build]
+    # build matrisinde mac başarısız olsa bile (Linux paketi üretildiyse) çalış
+    if: always() && needs.version.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pacman paketlerini al
+        uses: actions/download-artifact@v4
+        with:
+          name: pacman-packages
+          path: repo
+
+      - name: Pacman deposunu oluştur (Arch container içinde repo-add)
+        run: |
+          docker run --rm -v "$PWD/repo:/repo" -w /repo archlinux:latest bash -c '
+            set -e
+            pacman -Sy --noconfirm >/dev/null
+            shopt -s nullglob
+            # Yalnızca x86_64 paketini depoya al (arm64 talebi düşük; o .pacman ile pacman -U yapılır)
+            for f in *.pacman; do
+              case "$f" in *arm64*|*aarch64*) rm -f "$f"; continue;; esac
+              mv "$f" "${f%.pacman}-x86_64.pkg.tar.zst"
+            done
+            if ! ls *.pkg.tar.zst >/dev/null 2>&1; then echo "x86_64 pacman paketi yok"; exit 1; fi
+            repo-add serkanzilla.db.tar.zst *.pkg.tar.zst
+            # pacman, Server/serkanzilla.db ve .files dosyalarını ister → sembolik link yerine gerçek kopya
+            cp -f serkanzilla.db.tar.zst serkanzilla.db
+            cp -f serkanzilla.files.tar.zst serkanzilla.files
+          '
+
+      - name: arch-repo release'ine yükle
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd repo
+          gh release view arch-repo >/dev/null 2>&1 || \
+            gh release create arch-repo \
+              --title "Arch / pacman deposu" \
+              --notes "CachyOS/Arch için pacman deposu. /etc/pacman.conf'a ekleyin:
+
+          [serkanzilla]
+          SigLevel = Optional TrustAll
+          Server = https://github.com/${GITHUB_REPOSITORY}/releases/download/arch-repo
+
+          Sonra: sudo pacman -Sy serkanzilla" \
+              --latest=false
+          gh release upload arch-repo --clobber \
+            *.pkg.tar.zst serkanzilla.db serkanzilla.db.tar.zst serkanzilla.files serkanzilla.files.tar.zst

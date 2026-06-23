@@ -116,6 +116,24 @@ Belirli platformlar için:
 > AppImage FUSE2 ister; Arch tabanlılarda `sudo pacman -S fuse2` ya da
 > `./*.AppImage --appimage-extract-and-run` ile çalıştırılır.
 
+#### 🔁 CachyOS / Arch için otomatik güncellenen pacman deposu (önerilen)
+
+AUR'a gerek yok. Her sürümde CI, x86_64 pacman paketini bir depoya çevirip `arch-repo`
+release'inde yayımlar. Kullanıcı `/etc/pacman.conf` sonuna **bir kez** şunu ekler:
+
+```ini
+[serkanzilla]
+SigLevel = Optional TrustAll
+Server = https://github.com/serkancakmakk/Serkanzilla/releases/download/arch-repo
+```
+
+Sonra kurar ve bundan sonra normal sistem güncellemeleriyle otomatik güncel kalır:
+
+```sh
+sudo pacman -Sy serkanzilla     # kur
+sudo pacman -Syu                # güncelle (yeni sürümler otomatik gelir)
+```
+
 ### Web'den indirme (kullanıcılar için)
 Web arayüzü (`npm start`) açıkken giriş ekranındaki **"💻 Masaüstü uygulamasını indir"** ile
 kullanıcılar **kendi işletim sistemine uygun** kurulumu indirebilir (sistem otomatik algılanır).
