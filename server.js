@@ -288,6 +288,58 @@ app.get("/api/docker/stats", (req, res) => {
   );
 });
 
+// Boşta/eski konteynerler: docker inspect ile detaylı bilgi + son hareket zamanı
+app.get("/api/docker/idle", (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  // Tüm konteynerleri tek seferde incele (boşsa xargs -r çalıştırmaz)
+  const cmd =
+    "docker ps -aq --no-trunc | xargs -r docker inspect --format '{{json .}}'";
+  dockerExec(s, cmd, (err, r) => {
+    if (err) return res.json({ available: false, error: err.message });
+    if (dockerUnavailable(r))
+      return res.json({
+        available: false,
+        error: (r.errout || "Docker bulunamadı").trim(),
+      });
+    const now = Date.now();
+    // Docker "hiç" zamanı 0001-01-01 → geçersiz say
+    const parseTs = (v) => {
+      const t = Date.parse(v);
+      return Number.isFinite(t) && t > 0 ? t : 0;
+    };
+    const containers = parseJsonLines(r.out).map((c) => {
+      const st = c.State || {};
+      const cfg = c.Config || {};
+      const running = !!st.Running;
+      const created = parseTs(c.Created);
+      const startedAt = parseTs(st.StartedAt);
+      const finishedAt = parseTs(st.FinishedAt);
+      // Son hareket: çalışıyorsa başlatma; durduysa bitiş; hiç çalışmadıysa oluşturma
+      const lastActivity = running
+        ? startedAt || created
+        : finishedAt || created;
+      return {
+        id: (c.Id || "").slice(0, 12),
+        name: (c.Name || "").replace(/^\//, ""),
+        image: cfg.Image || "",
+        running,
+        status: st.Status || (running ? "running" : "exited"),
+        created,
+        startedAt,
+        finishedAt,
+        restartCount: c.RestartCount || 0,
+        cmd: Array.isArray(cfg.Cmd) ? cfg.Cmd.join(" ") : "",
+        lastActivity,
+        idleMs: lastActivity ? now - lastActivity : 0,
+      };
+    });
+    // En uzun süredir hareketsiz olan en üstte
+    containers.sort((a, b) => b.idleMs - a.idleMs);
+    res.json({ available: true, containers, now });
+  });
+});
+
 // Görüntü (image) listesi
 app.get("/api/docker/images", (req, res) => {
   const s = getSession(req, res);

@@ -373,6 +373,96 @@ async function renderSavedServers() {
   });
 }
 
+// ---------- FileZilla içe aktarma (sitemanager.xml) ----------
+$("import-fz").addEventListener("click", () => $("fz-file").click());
+$("fz-file").addEventListener("change", (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (file) importFileZilla(file);
+  $("fz-file").value = "";
+});
+
+// base64 (UTF-8 güvenli) çöz
+function b64decode(str) {
+  try { return decodeURIComponent(escape(atob(str))); }
+  catch (_) { try { return atob(str); } catch (_) { return ""; } }
+}
+
+// FileZilla protokol numarasını uygulamanın protokolüne çevir
+function fzProtocol(num) {
+  switch (String(num)) {
+    case "1": return "sftp";       // SFTP
+    case "3": case "4": return "ftps"; // FTPS (implicit/explicit)
+    case "0": default: return "ftp";   // FTP (varsayılan)
+  }
+}
+
+// Bir <Server> düğümünden site adını çıkar (<Name> ya da düğümün metni)
+function fzServerName(node) {
+  const nameEl = node.querySelector(":scope > Name");
+  if (nameEl && nameEl.textContent.trim()) return nameEl.textContent.trim();
+  // Eski sürümler adı doğrudan <Server> metni olarak tutar
+  let txt = "";
+  node.childNodes.forEach((n) => { if (n.nodeType === 3) txt += n.textContent; });
+  return txt.trim();
+}
+
+// sitemanager.xml metnini ayrıştır → sunucu nesneleri
+function parseFileZilla(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, "application/xml");
+  if (doc.querySelector("parsererror")) throw new Error("XML okunamadı (geçersiz dosya).");
+  const out = [];
+  // <Folder> içinde iç içe olsalar bile tüm <Server> düğümleri
+  doc.querySelectorAll("Server").forEach((s) => {
+    const get = (tag) => {
+      const el = s.querySelector(":scope > " + tag);
+      return el ? el.textContent.trim() : "";
+    };
+    const host = get("Host");
+    if (!host) return;
+    const protocol = fzProtocol(get("Protocol"));
+    const passEl = s.querySelector(":scope > Pass");
+    let password = "";
+    if (passEl) {
+      password = passEl.getAttribute("encoding") === "base64"
+        ? b64decode(passEl.textContent.trim())
+        : passEl.textContent.trim();
+    }
+    let username = get("User");
+    const logontype = get("Logontype");
+    if (!username && logontype === "0") username = "anonymous"; // anonim giriş
+    out.push({
+      name: fzServerName(s) || `${username || "user"}@${host}`,
+      host,
+      port: Number(get("Port")) || (protocol === "sftp" ? 22 : 21),
+      username: username || "anonymous",
+      protocol,
+      auth: "password",
+      password,
+    });
+  });
+  return out;
+}
+
+async function importFileZilla(file) {
+  showLoading(true);
+  try {
+    const text = await file.text();
+    const servers = parseFileZilla(text);
+    if (!servers.length) { toast("Dosyada içe aktarılacak sunucu bulunamadı.", true); return; }
+    let ok = 0;
+    for (const srv of servers) {
+      try { await api("servers", { method: "POST", json: srv }); ok++; }
+      catch (e) { console.warn("İçe aktarılamadı:", srv.host, e.message); }
+    }
+    await renderSavedServers();
+    toast(`FileZilla'dan ${ok}/${servers.length} sunucu içe aktarıldı.`);
+  } catch (e) {
+    toast("İçe aktarma hatası: " + e.message, true);
+  } finally {
+    showLoading(false);
+  }
+}
+
 // Login ekranındaki kayıtlı sunucular için bilgisayar (masaüstü) simgesi
 function computerSVG() {
   return `<svg width="30" height="30" viewBox="0 0 48 48" class="srv-svg" aria-hidden="true">
@@ -870,6 +960,10 @@ async function loadDocker() {
         }
       }
       renderContainers(data.containers, statsMap);
+    } else if (dockerTab === "idle") {
+      const data = await api("docker/idle");
+      if (!data.available) return showDockerUnavailable(data.error);
+      renderIdle(data.containers, data.now);
     } else {
       const data = await api("docker/images");
       if (!data.available) return showDockerUnavailable(data.error);
@@ -934,6 +1028,61 @@ function renderImages(list) {
   </tr>`).join("");
   $("docker-body").innerHTML =
     `<table class="dk-table"><thead><tr><th>Görüntü</th><th>Boyut</th><th>Oluşturulma</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// Süreyi "3 gün", "5 saat", "12 dk" gibi yaz
+function fmtDuration(ms) {
+  if (!ms || ms < 0) return "—";
+  const sec = Math.floor(ms / 1000);
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (d > 0) return `${d} gün${h ? " " + h + " sa" : ""}`;
+  if (h > 0) return `${h} saat${m ? " " + m + " dk" : ""}`;
+  if (m > 0) return `${m} dk`;
+  return `${sec} sn`;
+}
+
+// Boşta / eski konteynerler — son hareketten bu yana geçen süreye göre sıralı
+const IDLE_THRESHOLD = 7 * 86400 * 1000; // 7 gün → "uzun süredir kullanılmıyor"
+function renderIdle(list, now) {
+  if (!list.length) { $("docker-body").innerHTML = `<div class="dk-msg">Hiç konteyner yok.</div>`; return; }
+  const longIdle = list.filter((c) => !c.running && c.idleMs >= IDLE_THRESHOLD).length;
+  $("docker-status").textContent = longIdle
+    ? `${longIdle} konteyner 7+ gündür durdurulmuş`
+    : `${list.length} konteyner`;
+
+  const rows = list.map((c) => {
+    const idle = fmtDuration(c.idleMs);
+    const stale = !c.running && c.idleMs >= IDLE_THRESHOLD;
+    const stateCls = c.running ? "running" : "exited";
+    const activity = c.running
+      ? `⬆ ${idle} süredir çalışıyor`
+      : (c.finishedAt ? `⏹ ${idle} önce durdu` : `oluşturuldu, hiç çalışmadı`);
+    const created = c.created ? fmtDate(c.created) : "—";
+    const lastSeen = c.lastActivity ? fmtDate(c.lastActivity) : "—";
+    const a = [];
+    if (!c.running) a.push(btn("start", c.id, "container", "▶ Başlat", "go"));
+    a.push(`<button class="dk-btn" onclick="dockerLogs('${c.id}','${escapeAttr(c.name)}')">📄 Loglar</button>`);
+    a.push(btn("rm", c.id, "container", "🗑 Sil", "danger"));
+    return `<tr class="${stale ? "dk-stale" : ""}">
+      <td>
+        <div class="dk-name">${stale ? "⚠️ " : ""}${escapeHtml(c.name)}</div>
+        <div class="dk-sub">${escapeHtml(c.image)}</div>
+        ${c.cmd ? `<div class="dk-sub dk-cmd" title="${escapeAttr(c.cmd)}">$ ${escapeHtml(c.cmd)}</div>` : ""}
+      </td>
+      <td><span class="dk-state ${stateCls}"><span class="dot"></span>${escapeHtml(c.status)}</span></td>
+      <td class="dk-metric"><div>${escapeHtml(activity)}</div><div class="dk-sub">son: ${escapeHtml(lastSeen)}</div></td>
+      <td class="dk-sub">${escapeHtml(created)}</td>
+      <td class="dk-sub">${c.restartCount}×</td>
+      <td><div class="dk-actions">${a.join("")}</div></td>
+    </tr>`;
+  }).join("");
+  const hint = longIdle
+    ? `<div class="dk-msg" style="text-align:left;padding:10px 14px;opacity:.8">⚠️ işaretli konteynerler 7+ gündür durdurulmuş — artık gerekmiyorsa silebilirsin.</div>`
+    : "";
+  $("docker-body").innerHTML = hint +
+    `<table class="dk-table"><thead><tr><th>Konteyner</th><th>Durum</th><th>Son hareket</th><th>Oluşturulma</th><th>Restart</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function btn(action, id, type, label, extra = "") {

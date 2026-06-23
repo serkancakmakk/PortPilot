@@ -73,6 +73,8 @@
 
       <button type="submit" class="connect-btn">Bağlan</button>
       <div id="login-error" class="error"></div>
+      <button type="button" id="import-fz" class="dl-link" title="FileZilla site yöneticisini (sitemanager.xml) içe aktar">📥 FileZilla'dan içe aktar (sitemanager.xml)</button>
+      <input type="file" id="fz-file" accept=".xml,text/xml" hidden />
       <button type="button" id="open-downloads" class="dl-link"><span class="nav-ico-wrap" data-icon="monitor"></span> Masaüstü uygulamasını indir (Mac · Windows · Linux)</button>
     </form>
   </div>
@@ -182,6 +184,7 @@
         <span class="editor-title"><span class="nav-ico-wrap" data-icon="container"></span> Docker Yönetimi</span>
         <div class="docker-tabs">
           <button class="dk-tab active" data-tab="containers">Konteynerler</button>
+          <button class="dk-tab" data-tab="idle">🕒 Boşta / Eski</button>
           <button class="dk-tab" data-tab="images">Görüntüler</button>
         </div>
         <span class="editor-status" id="docker-status"></span>

@@ -1889,3 +1889,16 @@ tr.dir .fname {
 
 /* ---- Docker CPU/RAM sütunları ---- */
 .dk-metric { font-variant-numeric: tabular-nums; font-size: 13px; white-space: nowrap; }
+
+/* ---- Docker: boşta / eski konteynerler ---- */
+.dk-stale { background: rgba(255, 180, 60, .10); }
+.dk-stale:hover { background: rgba(255, 180, 60, .16); }
+.dk-cmd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: .65;
+}
