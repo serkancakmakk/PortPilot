@@ -1,9 +1,13 @@
 name: Build & Release
 
 # Tetikleyiciler (commit mesajına göre):
-#   [release]  → yama sürümü artar  (1.0.0 → 1.0.1 → 1.0.2 …)
-#   [version]  → ana sürüm artar    (1.x.x → 2.0.0)
-#   [minor]    → ara sürüm artar    (1.0.x → 1.1.0)   (bonus)
+#   [release]    → yama sürümü artar  (1.0.0 → 1.0.1 → 1.0.2 …)
+#   [version]    → ana sürüm artar    (1.x.x → 2.0.0)
+#   [minor]      → ara sürüm artar    (1.0.x → 1.1.0)   (bonus)
+#   [republish]  → SÜRÜM ARTMAZ; mevcut (son) sürümü yeniden derleyip
+#                  o release'in dosyalarını günceller. Not: sürüm aynı kaldığı
+#                  için zaten o sürümü kurmuş kullanıcılar OTOMATİK GÜNCELLEME ALMAZ
+#                  (auto-update sürüm numarasına bakar). Yeni indirenler güncel dosyayı alır.
 # Elle çalıştırmada (workflow_dispatch) artış türünü seçebilirsin.
 on:
   push:
@@ -26,10 +30,11 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       contains(github.event.head_commit.message, '[release]') ||
       contains(github.event.head_commit.message, '[version]') ||
-      contains(github.event.head_commit.message, '[minor]')
+      contains(github.event.head_commit.message, '[minor]') ||
+      contains(github.event.head_commit.message, '[republish]')
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.bump.outputs.tag }}
+      ref: ${{ steps.bump.outputs.ref }}
     steps:
       - name: Kaynağı al
         uses: actions/checkout@v4
@@ -42,37 +47,50 @@ jobs:
         with:
           node-version: 20
 
-      - name: Artış türünü belirle
+      - name: Mod ve artış türünü belirle
         id: kind
         run: |
           MSG=$(git log -1 --pretty=%B)
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            KIND="${{ github.event.inputs.bump }}"
+            MODE="bump"; KIND="${{ github.event.inputs.bump }}"
+          elif echo "$MSG" | grep -q "\[republish\]" && ! echo "$MSG" | grep -qE "\[release\]|\[version\]|\[minor\]"; then
+            MODE="republish"; KIND="none"
           elif echo "$MSG" | grep -q "\[version\]"; then
-            KIND="major"
+            MODE="bump"; KIND="major"
           elif echo "$MSG" | grep -q "\[minor\]"; then
-            KIND="minor"
+            MODE="bump"; KIND="minor"
           else
-            KIND="patch"
+            MODE="bump"; KIND="patch"
           fi
-          echo "Seçilen artış: $KIND"
+          echo "Mod: $MODE / Artış: $KIND"
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
           echo "kind=$KIND" >> "$GITHUB_OUTPUT"
 
-      - name: Sürümü artır + commit + etiket
+      - name: Sürümü belirle (artır veya mevcut sürüme yeniden yayımla)
         id: bump
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          NEW=$(npm version ${{ steps.kind.outputs.kind }} --no-git-tag-version)
-          echo "Yeni sürüm: $NEW"
-          # [skip ci] → bu otomatik commit yeni bir derlemeyi tetiklemesin (sonsuz döngü engeli)
-          git commit -am "chore: release $NEW [skip ci]"
-          git tag "$NEW"
-          git push
-          git push --tags
-          echo "tag=$NEW" >> "$GITHUB_OUTPUT"
+          if [ "${{ steps.kind.outputs.mode }}" = "republish" ]; then
+            CUR="v$(node -p "require('./package.json').version")"
+            echo "Yeniden yayım: sürüm artmadan $CUR release'i güncellenecek."
+            # Etiketi yeni koda taşı (release sayfasındaki kaynak kod yeni commit'i göstersin)
+            git tag -f "$CUR"
+            git push -f origin "$CUR" || true
+            # Derleme bu commit'ten yapılsın (yeni kod)
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            NEW=$(npm version ${{ steps.kind.outputs.kind }} --no-git-tag-version)
+            echo "Yeni sürüm: $NEW"
+            # [skip ci] → bu otomatik commit yeni bir derlemeyi tetiklemesin (sonsuz döngü engeli)
+            git commit -am "chore: release $NEW [skip ci]"
+            git tag "$NEW"
+            git push
+            git push --tags
+            echo "ref=$NEW" >> "$GITHUB_OUTPUT"
+          fi
 
-  # 2) Yeni etiketten 3 platformda derle ve release'e yükle
+  # 2) Belirlenen sürümden/commit'ten 3 platformda derle ve release'e yükle
   build:
     needs: version
     strategy:
@@ -85,10 +103,10 @@ jobs:
     env:
       HAS_MAC_CERT: ${{ secrets.MAC_CSC_LINK != '' }}
     steps:
-      - name: Yeni sürümü (etiketi) al
+      - name: Derlenecek sürümü/commit'i al
         uses: actions/checkout@v4
         with:
-          ref: ${{ needs.version.outputs.tag }}
+          ref: ${{ needs.version.outputs.ref }}
 
       - name: Node.js kur
         uses: actions/setup-node@v4
