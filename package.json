@@ -47,7 +47,8 @@
       {
         "provider": "github",
         "owner": "serkancakmakk",
-        "repo": "Serkanzilla"
+        "repo": "Serkanzilla",
+        "releaseType": "release"
       }
     ],
     "mac": {

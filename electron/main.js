@@ -29,20 +29,36 @@ function cmpVersion(a, b) {
   return 0;
 }
 
-// En son yayımlanan sürümü GitHub'dan sorgula, mevcut sürümle karşılaştır
+// En güncel yayımlanan sürümü GitHub'dan sorgula, mevcut sürümle karşılaştır.
+// /releases/latest yalnızca "latest" işaretli sürümü döndürür ve ön-sürümleri
+// (prerelease) atlar; bu yüzden tüm yayımlanmış sürümleri listeleyip en yükseğini seçiyoruz.
 async function checkForUpdate() {
   const current = app.getVersion();
+  const fallbackUrl = `https://github.com/${REPO}/releases/latest`;
   try {
-    const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+    const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=30`, {
       headers: { Accept: "application/vnd.github+json", "User-Agent": "Serkanzilla" },
     });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const data = await res.json();
-    const latest = (data.tag_name || "").replace(/^v/, "");
-    const hasUpdate = latest && cmpVersion(latest, current) > 0;
-    return { ok: true, current, latest, hasUpdate, url: data.html_url || `https://github.com/${REPO}/releases/latest` };
+    if (!res.ok) {
+      const hint = res.status === 403 ? "GitHub API limiti (kısa süre sonra tekrar deneyin)" : "HTTP " + res.status;
+      throw new Error(hint);
+    }
+    const list = await res.json();
+    if (!Array.isArray(list)) throw new Error("Beklenmeyen yanıt");
+    // Yalnızca taslak olmayanlar; en yüksek sürümü bul
+    const published = list.filter((r) => r && !r.draft && r.tag_name);
+    if (!published.length) {
+      return { ok: true, current, latest: null, hasUpdate: false, url: fallbackUrl };
+    }
+    let best = published[0];
+    for (const r of published) {
+      if (cmpVersion(r.tag_name.replace(/^v/, ""), best.tag_name.replace(/^v/, "")) > 0) best = r;
+    }
+    const latest = best.tag_name.replace(/^v/, "");
+    const hasUpdate = cmpVersion(latest, current) > 0;
+    return { ok: true, current, latest, hasUpdate, url: best.html_url || fallbackUrl };
   } catch (e) {
-    return { ok: false, current, error: e.message, url: `https://github.com/${REPO}/releases/latest` };
+    return { ok: false, current, error: e.message, url: fallbackUrl };
   }
 }
 
