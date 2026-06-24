@@ -13,6 +13,7 @@ app.use(require("./routes/connect"));
 app.use(require("./routes/files"));
 app.use(require("./routes/docker"));
 app.use(require("./routes/servers"));
+app.use(require("./routes/prefs"));
 app.use(require("./routes/downloads"));
 
 // ---- WebSocket terminali ----

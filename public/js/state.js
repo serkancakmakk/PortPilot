@@ -26,12 +26,43 @@ export let uploadPrefs = null;
 export let diskInfo = null;
 
 // Sık kullanılanlar (kalıcı, host bazlı): [{ host, path, name }]
+// Kaynak artık sunucudaki prefs.json (güncelleme/port değişiminde kaybolmaz).
+// localStorage yalnızca açılışta anında göstermek için önbellek olarak tutulur.
 export let favorites = (() => {
   try { return JSON.parse(localStorage.getItem("favorites") || "[]"); } catch (_) { return []; }
 })();
 export function setFavorites(v) {
   favorites = v;
   try { localStorage.setItem("favorites", JSON.stringify(v)); } catch (_) {}
+  // Sunucuya kalıcı yaz (en iyi çaba; hata olsa da UI etkilenmez)
+  try {
+    fetch("/api/prefs", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ favorites: v }),
+    }).catch(() => {});
+  } catch (_) {}
+}
+
+// Açılışta favorileri sunucudan yükle. Sunucu kaynaktır; ancak sunucuda henüz
+// favori yoksa (yeni dosya) ve localStorage önbelleğinde eski favoriler varsa,
+// kaybolmamaları için onları bir kez sunucuya taşı (migrasyon).
+export async function loadFavoritesFromServer() {
+  try {
+    const res = await fetch("/api/prefs");
+    if (!res.ok) return false;
+    const data = await res.json();
+    const fav = data && data.prefs && data.prefs.favorites;
+    if (Array.isArray(fav)) {
+      favorites = fav;
+      try { localStorage.setItem("favorites", JSON.stringify(fav)); } catch (_) {}
+      return true;
+    }
+    // Sunucuda favori yok → localStorage'daki eskileri taşı
+    if (favorites.length) setFavorites(favorites);
+    return true;
+  } catch (_) {}
+  return false;
 }
 
 // Transfer geçmişi (oturumluk): [{ type:'upload'|'download', label, bytes, time }]

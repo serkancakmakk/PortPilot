@@ -2,7 +2,8 @@ import { applyIcons } from "./icons.js";
 import { setLogoutFn } from "./api.js";
 import { logout, closeConnection, renderTabs, activateConn, persistConns } from "./connections.js";
 import { renderSavedServers } from "./servers.js";
-import { setConnections } from "./state.js";
+import { setConnections, loadFavoritesFromServer } from "./state.js";
+import { renderFavorites } from "./sidebar.js";
 import { initLogin } from "./login.js";
 import { initEditor, closeEditor } from "./editor.js";
 import { initDocker } from "./docker.js";
@@ -100,6 +101,9 @@ document.addEventListener("DOMContentLoaded", () => {
   $("btn-disconnect").addEventListener("click", () => {
     if (activeConnId) closeConnection(activeConnId);
   });
+
+  // Favorileri sunucudan (kalıcı) yükle; gelince listeyi tazele
+  loadFavoritesFromServer().then(() => renderFavorites());
 
   // Başlangıçta kayıtlı sunucuları yükle + refresh sonrası oturumları geri yükle
   renderSavedServers();

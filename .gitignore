@@ -4,6 +4,9 @@ node_modules/
 # Kayıtlı sunucular — parola/anahtar içerebilir, ASLA paylaşma!
 servers.json
 
+# Kullanıcı tercihleri (favoriler vb.) — yerel
+prefs.json
+
 # Loglar ve geçici dosyalar
 *.log
 .DS_Store
