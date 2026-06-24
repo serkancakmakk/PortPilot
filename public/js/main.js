@@ -16,6 +16,8 @@ import { initDragDrop } from "./upload.js";
 import { initRecentLocal } from "./recent-local.js";
 import { initLocalExplorer } from "./local-explorer.js";
 import { initLocalLast } from "./local-last.js";
+import { initSystools } from "./systools.js";
+import { initWhatsNew } from "./whatsnew.js";
 import { hideMenu, showAreaMenu } from "./context-menu.js";
 import { navigate } from "./explorer.js";
 import { cwd, activeConnId } from "./state.js";
@@ -75,6 +77,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initRecentLocal();
   initLocalExplorer();
   initLocalLast();
+  initSystools();
+  initWhatsNew();
 
   // Küçük ekran: sidebar aç/kapa (off-canvas)
   const sb = document.querySelector(".sidebar");

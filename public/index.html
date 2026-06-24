@@ -158,6 +158,8 @@
         <a id="btn-dashboard"><span class="q-ico" data-icon="gauge"></span> Sunucu Paneli</a>
         <a id="btn-terminal"><span class="q-ico" data-icon="terminal"></span> Sunucu Terminali</a>
         <a id="btn-docker"><span class="q-ico" data-icon="container"></span> Docker Yönetimi</a>
+        <a id="btn-systools"><span class="q-ico" data-icon="activity"></span> Sunucu Araçları</a>
+        <a id="btn-whatsnew"><span class="q-ico" data-icon="gauge"></span> Sürüm Notları</a>
         <a id="btn-update" hidden><span class="q-ico" data-icon="refresh"></span> Güncellemeleri Denetle<span class="upd-dot" hidden></span></a>
       </nav>
 
@@ -305,6 +307,26 @@
         <button id="docker-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
       </div>
       <div class="docker-body" id="docker-body"></div>
+    </div>
+  </div>
+
+  <!-- Sunucu Araçları paneli (portlar / süreçler / servisler / log) -->
+  <div id="systools-panel" class="editor-overlay" hidden>
+    <div class="docker-box">
+      <div class="editor-head">
+        <span class="editor-title"><span class="nav-ico-wrap" data-icon="activity"></span> Sunucu Araçları</span>
+        <div class="docker-tabs">
+          <button class="dk-tab active" data-systab="ports">Açık Portlar</button>
+          <button class="dk-tab" data-systab="procs">Süreçler</button>
+          <button class="dk-tab" data-systab="services">Servisler</button>
+          <button class="dk-tab" data-systab="log">Log</button>
+        </div>
+        <span class="editor-status" id="systools-status"></span>
+        <div class="spacer"></div>
+        <button id="systools-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> Yenile</button>
+        <button id="systools-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
+      </div>
+      <div class="docker-body" id="systools-body"></div>
     </div>
   </div>
 

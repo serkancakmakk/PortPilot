@@ -1382,6 +1382,53 @@ tr.dir .fname {
   text-align: left;
 }
 
+/* ---- Sunucu Araçları ---- */
+.sys-table { width: 100%; font-size: 13px; }
+.sys-table th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  font-weight: 600;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+.sys-table td { padding: 8px 10px; border-bottom: 1px solid var(--border, #eef1f6); vertical-align: middle; }
+.sys-table tbody tr:hover { background: rgba(37, 99, 235, .04); }
+.sys-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.dk-state.ok { color: #16a34a; }
+.dk-state.off { color: var(--muted, #6b7280); }
+.dk-state.ok .dot { background: #16a34a; }
+.dk-state.off .dot { background: #9ca3af; }
+.sys-logbar { display: flex; gap: 8px; margin-bottom: 10px; }
+.sys-log-lines { width: 90px; padding: 7px 10px; border: 1px solid var(--border, #e5e7eb); border-radius: 8px; font-size: 12px; }
+.sys-log {
+  background: #0b1020;
+  color: #d6e2ff;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 12px;
+  border-radius: 10px;
+  max-height: 60vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---- Neler yeni? (sürüm notları) ---- */
+.wn-box { width: min(640px, 92vw); }
+.wn-body { padding: 16px 20px; line-height: 1.55; }
+.wn-body h4 {
+  margin: 16px 0 6px;
+  font-size: 14px;
+  color: var(--accent-2, #1d4ed8);
+}
+.wn-body h4:first-child { margin-top: 0; }
+.wn-body ul { margin: 0 0 8px; padding-left: 20px; }
+.wn-body li { font-size: 13px; color: var(--text, #111); margin: 3px 0; }
+.wn-body p { font-size: 13px; color: var(--muted, #6b7280); margin: 6px 0; }
+.wn-body strong { color: var(--text, #111); }
+
 /* ---- Durum çubuğu ---- */
 .statusbar {
   padding: 8px 16px;

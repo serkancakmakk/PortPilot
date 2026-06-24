@@ -15,6 +15,14 @@ app.get("/api/version", (_req, res) => {
   res.json({ version });
 });
 
+// Sürüm notları (CHANGELOG.md) — "Neler yeni?" penceresi için
+app.get("/api/changelog", (_req, res) => {
+  let markdown = "", version = "";
+  try { version = require("./package.json").version || ""; } catch (_) {}
+  try { markdown = require("fs").readFileSync(path.join(__dirname, "CHANGELOG.md"), "utf8"); } catch (_) {}
+  res.json({ version, markdown });
+});
+
 // ---- Route modülleri ----
 app.use(require("./routes/connect"));
 app.use(require("./routes/files"));
@@ -22,6 +30,7 @@ app.use(require("./routes/docker"));
 app.use(require("./routes/servers"));
 app.use(require("./routes/prefs"));
 app.use(require("./routes/downloads"));
+app.use(require("./routes/sys"));
 
 // ---- WebSocket terminali ----
 // Doğrudan `node server.js` ile çalıştırıldığında dinle.

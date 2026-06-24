@@ -75,6 +75,17 @@ function closeExplorer() {
   renderLocalLast();
 }
 
+// Aktif sunucu değişince çağrılır: gezgin durumu sunucular arası taşınmasın.
+// (Aksi halde A sunucusundaki yerel yol B'de de görünüp B'ye kaydedilebiliyordu.)
+export function resetLocalExplorer() {
+  curPath = null;
+  curParent = null;
+  curEntries = [];
+  selected.clear();
+  const box = $("local-explorer");
+  if (box && !box.hidden) openLocalExplorer(); // açıksa yeni sunucunun yoluna yükle
+}
+
 async function listDir(dir) {
   let r;
   try { r = await window.desktop.listDir(dir); } catch (e) { r = { ok: false, error: e.message }; }
