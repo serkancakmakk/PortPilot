@@ -1,4 +1,4 @@
-import { $, showLoading, toast } from "./dom.js";
+import { $, showLoading, toast, escapeHtml, escapeAttr } from "./dom.js";
 import { icon, iconFor } from "./icons.js";
 import { api } from "./api.js";
 import {
@@ -176,6 +176,38 @@ export function checkedItems() {
   return Array.from($("file-area").querySelectorAll(".row-check"))
     .filter((cb) => cb.checked)
     .map((cb) => cb._item);
+}
+
+// ---- Sunucuda arama sonuçları (overlay) ----
+export function showSearchResults(query, items, truncated) {
+  let ov = $("search-results");
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.id = "search-results";
+    ov.className = "sr-overlay";
+    document.body.appendChild(ov);
+  }
+  const rows = (items || []).map((it) => {
+    const parent = it.path.replace(/\/[^/]+$/, "") || "/";
+    return `<div class="sr-row" data-path="${escapeAttr(it.path)}" data-parent="${escapeAttr(parent)}" data-type="${it.type}">
+      <span class="sr-ico">${it.type === "dir" ? "📁" : it.type === "link" ? "🔗" : "📄"}</span>
+      <span class="sr-name">${escapeHtml(it.name)}</span>
+      <span class="sr-path">${escapeHtml(it.path)}</span>
+    </div>`;
+  }).join("");
+  ov.innerHTML = `<div class="sr-box">
+    <div class="sr-head"><b>“${escapeHtml(query)}” sonuçları (${(items || []).length}${truncated ? "+" : ""})</b><button type="button" class="sr-close" title="Kapat">✕</button></div>
+    <div class="sr-list">${rows || '<div class="sr-empty">Sonuç yok.</div>'}</div>
+  </div>`;
+  ov.hidden = false;
+  ov.querySelector(".sr-close").onclick = () => { ov.hidden = true; };
+  ov.onclick = (e) => { if (e.target === ov) ov.hidden = true; };
+  ov.querySelectorAll(".sr-row").forEach((r) => {
+    r.onclick = () => {
+      ov.hidden = true;
+      navigate(r.dataset.type === "dir" ? r.dataset.path : r.dataset.parent);
+    };
+  });
 }
 
 export function syncCheckState() {

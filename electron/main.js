@@ -122,6 +122,25 @@ function sendUpdate(payload) {
   }
 }
 
+// releaseNotes (string/HTML ya da [{version,note}]) → dialog için düz metin.
+function formatNotes(notes) {
+  if (!notes) return "";
+  let text = Array.isArray(notes)
+    ? notes.map((n) => (n && n.note) || "").join("\n")
+    : String(notes);
+  text = text
+    .replace(/<[^>]+>/g, "")            // HTML etiketleri
+    .replace(/^#+\s*/gm, "")            // markdown başlık #
+    .replace(/\*\*(.+?)\*\*/g, "$1")    // **kalın**
+    .replace(/\r/g, "")
+    .split("\n").map((l) => l.trimEnd()).join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  // Çok uzunsa kırp (dialog taşmasın)
+  if (text.length > 1200) text = text.slice(0, 1200).trimEnd() + "…";
+  return text;
+}
+
 function wireAutoUpdater() {
   if (updaterWired) return;
   updaterWired = true;
@@ -129,7 +148,10 @@ function wireAutoUpdater() {
   autoUpdater.autoInstallOnAppQuit = true;   // indirildiyse çıkışta sessizce kur
 
   autoUpdater.on("update-available", async (info) => {
-    sendUpdate({ state: "available", version: info.version });
+    sendUpdate({ state: "available", version: info.version, notes: formatNotes(info.releaseNotes) });
+    const notes = formatNotes(info.releaseNotes);
+    const detail = "Şimdi indirilsin mi? İndikten sonra tek tıkla kurabilirsin."
+      + (notes ? `\n\n— Yenilikler —\n${notes}` : "");
     const { response } = await dialog.showMessageBox(mainWindow, {
       type: "info",
       buttons: ["İndir", "Daha sonra"],
@@ -137,7 +159,7 @@ function wireAutoUpdater() {
       cancelId: 1,
       title: "Güncelleme var",
       message: `Yeni sürüm hazır: v${info.version}`,
-      detail: "Şimdi indirilsin mi? İndikten sonra tek tıkla kurabilirsin.",
+      detail,
     });
     if (response === 0) {
       sendUpdate({ state: "downloading", percent: 0 });

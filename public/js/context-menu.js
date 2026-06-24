@@ -1,11 +1,14 @@
 import { $, showLoading } from "./dom.js";
 import { cwd, session } from "./state.js";
-import { joinPath, navigate, isEditable, downloadFile, downloadFolder } from "./explorer.js";
+import { joinPath, navigate, isEditable, downloadFile, downloadFolder, checkedItems } from "./explorer.js";
 import { api } from "./api.js";
 import { toast } from "./dom.js";
 import { confirmDialog, promptDialog } from "./dialog.js";
 
 const menu = $("context-menu");
+
+// Pano: kopyala/kes ile dolar, yapıştır ile uygulanır → { mode:'copy'|'move', paths:[] }
+let clipboard = null;
 
 export function showContextMenu(e, item) {
   const full = joinPath(cwd, item.name);
@@ -19,6 +22,13 @@ export function showContextMenu(e, item) {
       actions.push({ label: "📝 Düzenle", fn: () => import("./editor.js").then((m) => m.editFile(item, full)) });
     actions.push({ label: "⬇ İndir", fn: () => downloadFile(full) });
   }
+  actions.push({ sep: true });
+  // Çoklu seçim varsa kopyala/kes hepsine uygulanır; yoksa bu öğeye.
+  const sel = selectionPaths(item, full);
+  const n = sel.length;
+  actions.push({ label: n > 1 ? `📋 Kopyala (${n})` : "📋 Kopyala", fn: () => setClipboard("copy", sel) });
+  actions.push({ label: n > 1 ? `✂ Kes (${n})` : "✂ Kes", fn: () => setClipboard("move", sel) });
+  actions.push({ label: "🔒 İzinler…", fn: () => chmodItem(item, full) });
   actions.push({ label: "✏ Yeniden adlandır", fn: () => renameItem(item, full) });
   actions.push({ sep: true });
   actions.push({ label: "🗑 Sil", danger: true, fn: () => deleteItem(item, full) });
@@ -28,11 +38,75 @@ export function showContextMenu(e, item) {
 export function showAreaMenu(e) {
   if (e.target.closest("tr, .tile")) return;
   e.preventDefault();
-  renderMenu(e, [
+  const actions = [
     { label: "⌨ Terminal'i burada aç", fn: () => import("./terminal.js").then((m) => m.openServerTerminal(cwd)) },
     { label: "📁 Yeni Klasör", fn: () => import("./toolbar.js").then((m) => m.newFolder()) },
-    { label: "🔄 Yenile", fn: () => navigate(cwd, false) },
-  ]);
+    { label: "🔎 Bu klasörde ara…", fn: () => searchHere() },
+  ];
+  if (clipboard && clipboard.paths.length) {
+    const verb = clipboard.mode === "move" ? "Taşı" : "Yapıştır";
+    actions.push({ sep: true });
+    actions.push({ label: `📌 ${verb} (${clipboard.paths.length})`, fn: () => pasteHere() });
+  }
+  actions.push({ sep: true });
+  actions.push({ label: "🔄 Yenile", fn: () => navigate(cwd, false) });
+  renderMenu(e, actions);
+}
+
+// Sağ tıklanan öğe seçili kutular arasındaysa hepsini, değilse yalnızca onu döndür.
+function selectionPaths(item, full) {
+  const checked = checkedItems();
+  if (checked.length && checked.some((it) => it.name === item.name))
+    return checked.map((it) => joinPath(cwd, it.name));
+  return [full];
+}
+
+function setClipboard(mode, paths) {
+  clipboard = { mode, paths };
+  toast(`${paths.length} öğe ${mode === "move" ? "kesildi" : "kopyalandı"} — hedef klasörde sağ tık → Yapıştır`);
+}
+
+async function pasteHere() {
+  if (!clipboard || !clipboard.paths.length) return;
+  const { mode, paths } = clipboard;
+  showLoading(true);
+  try {
+    await api(mode === "move" ? "move" : "copy", { method: "POST", json: { sources: paths, dest: cwd } });
+    toast(`${paths.length} öğe ${mode === "move" ? "taşındı" : "kopyalandı"}`);
+    if (mode === "move") clipboard = null;
+    await navigate(cwd, false);
+  } catch (e) { toast(e.message, true); }
+  finally { showLoading(false); }
+}
+
+async function chmodItem(item, full) {
+  const cur = typeof item.mode === "number" ? (item.mode & 0o777).toString(8).padStart(3, "0") : "644";
+  const mode = await promptDialog(
+    "İzinler (sekizlik, ör. 755 / 644). Klasörde içindekilere de uygulamak için sona -R ekle:",
+    { title: `İzinler — ${item.name}`, defaultValue: cur, okText: "Uygula" }
+  );
+  if (!mode) return;
+  const recursive = /\s-R\s*$/i.test(" " + mode);
+  const clean = mode.replace(/\s*-R\s*$/i, "").trim();
+  showLoading(true);
+  try {
+    await api("chmod", { method: "POST", json: { path: full, mode: clean, recursive } });
+    toast("İzinler güncellendi" + (recursive ? " (özyinelemeli)" : ""));
+    await navigate(cwd, false);
+  } catch (e) { toast(e.message, true); }
+  finally { showLoading(false); }
+}
+
+async function searchHere() {
+  const q = await promptDialog(`"${cwd}" ve alt klasörlerinde ara:`, { title: "Sunucuda Ara", okText: "Ara" });
+  if (!q) return;
+  showLoading(true);
+  try {
+    const r = await api("search?path=" + encodeURIComponent(cwd) + "&q=" + encodeURIComponent(q));
+    const { showSearchResults } = await import("./explorer.js");
+    showSearchResults(q, r.items || [], r.truncated);
+  } catch (e) { toast(e.message, true); }
+  finally { showLoading(false); }
 }
 
 function renderMenu(e, actions) {

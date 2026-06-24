@@ -536,6 +536,93 @@ router.post("/api/rename", async (req, res) => {
   }
 });
 
+// ---- Kabuk komutu çalıştırıcı (chmod/copy/move/search için) ----
+function runCmd(s, cmd) {
+  return new Promise((resolve, reject) => {
+    if (!hasExec(s))
+      return reject(new Error("Bu bağlantı kabuk komutlarını desteklemiyor (yalnızca SFTP/FTP)."));
+    s.fs.exec.exec(cmd, (err, stream) => {
+      if (err) return reject(err);
+      let out = "", errOut = "";
+      stream.on("data", (d) => { out += d; });
+      stream.stderr.on("data", (d) => { errOut += d; });
+      stream.on("close", (code) => resolve({ code: code || 0, out, err: errOut }));
+    });
+  });
+}
+
+// ---- Dosya/klasör izinleri (chmod) ----
+router.post("/api/chmod", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  const target = resolveRemote("/", req.body.path || "");
+  const mode = String(req.body.mode || "");
+  if (!req.body.path) return res.status(400).json({ error: "Yol gerekli." });
+  if (!/^[0-7]{3,4}$/.test(mode)) return res.status(400).json({ error: "Geçersiz izin (ör. 755)." });
+  const rec = req.body.recursive ? "-R " : "";
+  try {
+    const r = await runCmd(s, `chmod ${rec}${mode} -- ${shQuote(target)}`);
+    if (r.code !== 0) return res.status(400).json({ error: r.err.trim() || "İzin değiştirilemedi." });
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ---- Kopyala / Taşı (sunucu içi) ----
+async function copyOrMove(req, res, move) {
+  const s = getSession(req, res);
+  if (!s) return;
+  const dest = resolveRemote("/", req.body.dest || "/");
+  let sources = Array.isArray(req.body.sources) ? req.body.sources : [];
+  sources = sources.filter((p) => typeof p === "string" && p).map((p) => resolveRemote("/", p));
+  if (!sources.length) return res.status(400).json({ error: "Kaynak seçilmedi." });
+  // Kendi içine taşıma/kopyalamayı engelle
+  for (const src of sources) {
+    if (dest === src || dest.startsWith(src + "/"))
+      return res.status(400).json({ error: "Hedef, kaynağın kendisi veya alt klasörü olamaz." });
+  }
+  const args = sources.map((p) => shQuote(p)).join(" ");
+  const cmd = move ? `mv -- ${args} ${shQuote(dest)}/` : `cp -a -- ${args} ${shQuote(dest)}/`;
+  try {
+    const r = await runCmd(s, cmd);
+    if (r.code !== 0) return res.status(400).json({ error: r.err.trim() || (move ? "Taşıma başarısız." : "Kopyalama başarısız.") });
+    res.json({ ok: true, count: sources.length });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+}
+router.post("/api/copy", (req, res) => copyOrMove(req, res, false));
+router.post("/api/move", (req, res) => copyOrMove(req, res, true));
+
+// ---- Özyinelemeli arama (find) ----
+router.get("/api/search", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  const dir = resolveRemote("/", req.query.path || "/");
+  const q = String(req.query.q || "").trim();
+  if (!q) return res.status(400).json({ error: "Arama terimi gerekli." });
+  const pattern = "*" + q.replace(/['"]/g, "") + "*";
+  try {
+    const r = await runCmd(
+      s,
+      `find ${shQuote(dir)} -maxdepth 8 -iname ${shQuote(pattern)} -printf '%y\\t%s\\t%T@\\t%p\\n' 2>/dev/null | head -n 500`
+    );
+    const items = r.out.split("\n").map((l) => {
+      if (!l) return null;
+      const parts = l.split("\t");
+      if (parts.length < 4) return null;
+      const [ty, size, mt] = parts;
+      const p = parts.slice(3).join("\t");
+      if (!p) return null;
+      return {
+        path: p,
+        name: p.split("/").pop(),
+        type: ty === "d" ? "dir" : ty === "l" ? "link" : "file",
+        size: Number(size) || 0,
+        mtime: Math.floor((Number(mt) || 0) * 1000),
+      };
+    }).filter(Boolean);
+    res.json({ items, truncated: items.length >= 500 });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ---- Sil ----
 // İlerlemeli (akıtmalı) silme: NDJSON satırları → {total} ... {done} ... {ok}/{error}
 router.post("/api/delete-stream", async (req, res) => {
