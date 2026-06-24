@@ -18,9 +18,10 @@ import { initLocalExplorer } from "./local-explorer.js";
 import { initLocalLast } from "./local-last.js";
 import { initSystools } from "./systools.js";
 import { initWhatsNew } from "./whatsnew.js";
-import { hideMenu, showAreaMenu } from "./context-menu.js";
-import { navigate } from "./explorer.js";
-import { cwd, activeConnId } from "./state.js";
+import { initTransferQueue } from "./transfer-queue.js";
+import { hideMenu, showAreaMenu, renameItem, deleteItem } from "./context-menu.js";
+import { navigate, joinPath } from "./explorer.js";
+import { cwd, activeConnId, selectedItem } from "./state.js";
 import { $, showLoading } from "./dom.js";
 
 // Refresh sonrası açık oturumları sunucudan doğrulayıp geri yükle
@@ -79,6 +80,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initLocalLast();
   initSystools();
   initWhatsNew();
+  initTransferQueue();
 
   // Küçük ekran: sidebar aç/kapa (off-canvas)
   const sb = document.querySelector(".sidebar");
@@ -115,10 +117,20 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     if ($("explorer").hidden) return;
+    const typing = e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA";
     if (e.key === "F5") { e.preventDefault(); navigate(cwd, false); }
-    if (e.key === "Backspace" && e.target.tagName !== "INPUT" && e.target.tagName !== "TEXTAREA") {
+    if (e.key === "Backspace" && !typing) {
       e.preventDefault();
       $("btn-up").click();
+    }
+    // F2: yeniden adlandır · Delete: sil (seçili öğe üzerinde)
+    if (e.key === "F2" && !typing && selectedItem) {
+      e.preventDefault();
+      renameItem(selectedItem, joinPath(cwd, selectedItem.name));
+    }
+    if ((e.key === "Delete" || (e.key === "Backspace" && (e.metaKey || e.ctrlKey))) && !typing && selectedItem) {
+      e.preventDefault();
+      deleteItem(selectedItem, joinPath(cwd, selectedItem.name));
     }
   });
 

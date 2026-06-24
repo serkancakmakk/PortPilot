@@ -4,7 +4,7 @@
 // Express sunucusunu yerel bir portta başlatır ve bir pencere içinde açar.
 // macOS · Windows · Linux için electron-builder ile paketlenir.
 
-const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { autoUpdater } = require("electron-updater");
@@ -30,6 +30,10 @@ if (process.platform === "linux") {
   app.commandLine.appendSwitch("ozone-platform-hint", "auto");
   // Wayland'da pencere dekorasyonu/çizim sorunlarını azaltır.
   app.commandLine.appendSwitch("enable-features", "WaylandWindowDecorations");
+  // Pencere WM sınıfı / Wayland app_id'sini kurulu portpilot.desktop ile eşle.
+  // Böylece Alt+Tab ve dock ikonu .desktop dosyasındaki ikondan çözülür (Wayland'da
+  // _NET_WM_ICON/setIcon kullanılmaz; eşleşme app_id üzerindendir).
+  app.commandLine.appendSwitch("class", "portpilot");
   // GPU/derleyici çakışması sık sık beyaz ekrana yol açar → yazılım render.
   app.disableHardwareAcceleration();
 }
@@ -271,6 +275,10 @@ async function createWindow() {
     return;
   }
 
+  // İkonu nativeImage ile yükle (Linux'ta pencere/görev çubuğu ikonu için gerekli)
+  const iconPath = path.join(__dirname, "..", "public", "icon.png");
+  const appIcon = nativeImage.createFromPath(iconPath);
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -278,13 +286,18 @@ async function createWindow() {
     minHeight: 600,
     backgroundColor: "#eef1f6",
     title: "PortPilot",
-    icon: path.join(__dirname, "..", "public", "icon.png"),
+    icon: appIcon.isEmpty() ? iconPath : appIcon,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       preload: path.join(__dirname, "preload.js"),
     },
   });
+
+  // Linux'ta pencere ikonu BrowserWindow seçeneğiyle bazen oturmuyor → açıkça ata.
+  if (process.platform === "linux" && !appIcon.isEmpty()) {
+    try { mainWindow.setIcon(appIcon); } catch (_) {}
+  }
 
   // Dış bağlantılar (varsa) sistem tarayıcısında açılsın
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {

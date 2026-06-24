@@ -105,6 +105,10 @@
     "linux": {
       "category": "Utility",
       "maintainer": "Serkan <cakmakserkan07@gmail.com>",
+      "executableName": "portpilot",
+      "desktop": {
+        "StartupWMClass": "portpilot"
+      },
       "target": [
         {
           "target": "AppImage",

@@ -1,11 +1,14 @@
 import { $, showLoading } from "./dom.js";
-import { cwd, session } from "./state.js";
+import { cwd, session, connections } from "./state.js";
 import { joinPath, navigate, isEditable, downloadFile, downloadFolder, checkedItems } from "./explorer.js";
 import { api } from "./api.js";
 import { toast } from "./dom.js";
 import { confirmDialog, promptDialog } from "./dialog.js";
 
 const menu = $("context-menu");
+
+// Önizlenebilir uzantılar (resim/PDF)
+const PREVIEW_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|pdf)$/i;
 
 // Pano: kopyala/kes ile dolar, yapıştır ile uygulanır → { mode:'copy'|'move', paths:[] }
 let clipboard = null;
@@ -18,6 +21,8 @@ export function showContextMenu(e, item) {
     actions.push({ label: "⌨ Terminal'i burada aç", fn: () => import("./terminal.js").then((m) => m.openServerTerminal(full)) });
     actions.push({ label: "⬇ İndir (.tar.gz)", fn: () => downloadFolder(full) });
   } else {
+    if (PREVIEW_EXT.test(item.name))
+      actions.push({ label: "👁 Önizle", fn: () => import("./preview.js").then((m) => m.previewFile(item, full)) });
     if (isEditable(item.name))
       actions.push({ label: "📝 Düzenle", fn: () => import("./editor.js").then((m) => m.editFile(item, full)) });
     actions.push({ label: "⬇ İndir", fn: () => downloadFile(full) });
@@ -28,6 +33,8 @@ export function showContextMenu(e, item) {
   const n = sel.length;
   actions.push({ label: n > 1 ? `📋 Kopyala (${n})` : "📋 Kopyala", fn: () => setClipboard("copy", sel) });
   actions.push({ label: n > 1 ? `✂ Kes (${n})` : "✂ Kes", fn: () => setClipboard("move", sel) });
+  if (connections.length > 1)
+    actions.push({ label: n > 1 ? `➡ Başka sunucuya aktar (${n})…` : "➡ Başka sunucuya aktar…", fn: () => import("./transfer-remote.js").then((m) => m.showRemoteTransfer(sel)) });
   actions.push({ label: "🔒 İzinler…", fn: () => chmodItem(item, full) });
   actions.push({ label: "✏ Yeniden adlandır", fn: () => renameItem(item, full) });
   actions.push({ sep: true });
@@ -131,7 +138,7 @@ function renderMenu(e, actions) {
 
 export function hideMenu() { menu.hidden = true; }
 
-async function renameItem(item, full) {
+export async function renameItem(item, full) {
   const { cwd } = await import("./state.js");
   const name = await promptDialog("Yeni ad:", { title: "Yeniden Adlandır", defaultValue: item.name, okText: "Kaydet" });
   if (!name || name === item.name) return;
@@ -142,7 +149,7 @@ async function renameItem(item, full) {
   } catch (e) { toast(e.message, true); }
 }
 
-async function deleteItem(item, full) {
+export async function deleteItem(item, full) {
   const { cwd } = await import("./state.js");
   const what = item.type === "dir" ? "klasörü ve TÜM içeriğini" : "dosyayı";
   if (!(await confirmDialog(`"${item.name}" ${what} kalıcı olarak silmek istiyor musun?`, { title: "Silinsin mi?", okText: "Sil", danger: true }))) return;

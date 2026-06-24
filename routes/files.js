@@ -1,7 +1,8 @@
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
-const { getSession, hasExec } = require("../lib/sessions");
+const { getSession, hasExec, sessions } = require("../lib/sessions");
+const { PassThrough } = require("stream");
 const { resolveRemote, shQuote, runPool } = require("../lib/shell-utils");
 const {
   upload,
@@ -590,6 +591,83 @@ async function copyOrMove(req, res, move) {
 }
 router.post("/api/copy", (req, res) => copyOrMove(req, res, false));
 router.post("/api/move", (req, res) => copyOrMove(req, res, true));
+
+// ---- Sunucudan sunucuya aktarım ----
+// Kaynak (aktif oturum) → hedef (body.target oturumu). Sunucu, baytları iki SFTP
+// bağlantısı arasında relay eder (PassThrough). NDJSON ilerleme akışı döndürür.
+router.post("/api/transfer-remote", express.json(), async (req, res) => {
+  const src = getSession(req, res);
+  if (!src) return;
+  const target = req.body.target && sessions.get(req.body.target);
+  if (!target) return res.status(400).json({ error: "Hedef sunucu oturumu bulunamadı." });
+  if (target === src) return res.status(400).json({ error: "Hedef, kaynakla aynı olamaz." });
+
+  const destDir = resolveRemote("/", req.body.dest || "/");
+  let sources = Array.isArray(req.body.sources) ? req.body.sources : [];
+  sources = sources.filter((p) => typeof p === "string" && p).map((p) => resolveRemote("/", p));
+  if (!sources.length) return res.status(400).json({ error: "Kaynak seçilmedi." });
+
+  res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  let clientGone = false;
+  res.on("error", () => {});
+  req.on("aborted", () => { clientGone = true; });
+  const send = (o) => { if (clientGone) return; try { res.write(JSON.stringify(o) + "\n"); } catch (_) { clientGone = true; } };
+
+  // Kaynaktaki dosyaları topla (klasörleri gezerek)
+  const files = [], dirs = new Set();
+  async function collect(p, rel) {
+    let entries = null;
+    try { entries = await src.fs.list(p); } catch (_) { entries = null; }
+    if (entries) { // klasör
+      dirs.add(rel);
+      for (const e of entries) await collect(p + "/" + e.name, rel + "/" + e.name);
+    } else {
+      files.push({ src: p, rel });
+    }
+  }
+
+  try {
+    for (const sp of sources) await collect(sp, path.posix.basename(sp));
+    if (!files.length) { send({ error: "Aktarılacak dosya bulunamadı." }); return res.end(); }
+    send({ total: files.length });
+
+    // Hedefte gerekli klasörleri oluştur
+    const allDirs = new Set();
+    for (const d of dirs) allDirs.add(resolveRemote(destDir, d));
+    for (const f of files) {
+      let d = path.posix.dirname(resolveRemote(destDir, f.rel));
+      while (d && d.length > destDir.length && !allDirs.has(d)) { allDirs.add(d); d = path.posix.dirname(d); }
+    }
+    for (const d of [...allDirs].sort((a, b) => a.length - b.length)) {
+      try { await target.fs.mkdir(d); } catch (_) {}
+    }
+
+    // FTP tarafı varsa tek akış (paralel kanal yok)
+    const concurrency = hasExec(src) && hasExec(target) ? 3 : 1;
+    let done = 0, lastSent = 0;
+    const step = Math.max(1, Math.floor(files.length / 100));
+    const errors = await runPool(files, concurrency, async (f) => {
+      const dest = resolveRemote(destDir, f.rel);
+      const pass = new PassThrough();
+      const up = target.fs.uploadStream(pass, dest);
+      await src.fs.downloadTo(pass, f.src); // kaynak okuma → pass (biter)
+      await up;                              // pass → hedef yazma tamam
+      done++;
+      if (done - lastSent >= step || done === files.length) { lastSent = done; send({ done }); }
+    });
+
+    if (errors.length) {
+      send({ error: `${errors.length} dosya aktarılamadı (ör. ${path.posix.basename(errors[0].item.src)}: ${errors[0].error.message})`, count: files.length - errors.length, failed: errors.length });
+    } else {
+      send({ ok: true, count: files.length });
+    }
+    res.end();
+  } catch (e) {
+    send({ error: "Aktarım hatası: " + e.message });
+    res.end();
+  }
+});
 
 // ---- Özyinelemeli arama (find) ----
 router.get("/api/search", async (req, res) => {

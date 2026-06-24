@@ -187,6 +187,8 @@ function updateFoot() {
     ? `${n} öğe seçili → ${cwd}`
     : "Klasörleri/dosyaları seç ya da yukarıdaki yükleme alanına sürükle.";
   if (btn) btn.disabled = !n;
+  const sync = $("lx-sync");
+  if (sync) sync.disabled = !n;
   if (cb) {
     cb.disabled = !curEntries.length;
     cb.checked = allSelected();
@@ -196,15 +198,18 @@ function updateFoot() {
 
 // Verilen yolları sunucudaki güncel dizine yükler; seçenek sorar. rememberFolders
 // verilirse yalnızca onlar "son klasörler"e eklenir (dosyalar kirletmez).
-export async function uploadLocalPaths(paths, rememberFolders) {
+// sync=true → seçenek sormaz, yalnızca değişen/yeni dosyaları gönderir (senkronizasyon).
+export async function uploadLocalPaths(paths, rememberFolders, sync) {
   paths = (paths || []).filter(Boolean);
   if (!paths.length) return;
   const names = paths.map((p) => p.split(/[\\/]/).filter(Boolean).pop());
-  const opts = await askUploadOptions([], `${paths.length} öğe (${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}) → ${cwd}`);
+  const opts = sync
+    ? { conflict: "overwrite_size_newer", concurrency: 4 }
+    : await askUploadOptions([], `${paths.length} öğe (${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}) → ${cwd}`);
   if (!opts) return; // iptal
 
   rememberLocalPaths(rememberFolders || []); // yalnızca klasörleri hatırla
-  if ($("lx-info")) $("lx-info").textContent = "Yükleniyor…";
+  if ($("lx-info")) $("lx-info").textContent = sync ? "Senkronize ediliyor…" : "Yükleniyor…";
   try {
     const res = await fetch("/api/upload-local", {
       method: "POST",
@@ -235,20 +240,25 @@ export async function uploadLocalPaths(paths, rememberFolders) {
     if (last && last.error) toast(last.error, true);
     else {
       const c = (last && last.count) || 0;
-      const extra = last && last.skipped ? `, ${last.skipped} atlandı` : "";
-      toast(`Yüklendi (${c} dosya${extra})`);
+      const skipped = last && last.skipped ? last.skipped : 0;
+      if (sync) toast(`Senkronize edildi (${c} değişen gönderildi${skipped ? `, ${skipped} güncel` : ""})`);
+      else toast(`Yüklendi (${c} dosya${skipped ? `, ${skipped} atlandı` : ""})`);
       navigate(cwd);
     }
   } catch (e) {
-    toast(e.message || "Yükleme başarısız", true);
+    toast(e.message || (sync ? "Senkronizasyon başarısız" : "Yükleme başarısız"), true);
   } finally {
     updateFoot();
   }
 }
 
-function uploadSelected() {
+function uploadSelected(sync) {
   const items = [...selected].map(([p, isDir]) => ({ path: p, isDir }));
-  uploadLocalPaths(items.map((i) => i.path), foldersToRemember(items, curPath));
+  const paths = items.map((i) => i.path);
+  const folders = foldersToRemember(items, curPath);
+  const label = `${sync ? "Senkronize" : "Yükle"} (${paths.length} öğe)`;
+  import("./transfer-queue.js").then((tq) =>
+    tq.enqueueTransfer(label, () => uploadLocalPaths(paths, folders, sync)));
 }
 
 export function initLocalExplorer() {
@@ -264,7 +274,8 @@ export function initLocalExplorer() {
   if ($("lx-go")) $("lx-go").addEventListener("click", go);
   if ($("lx-path")) $("lx-path").addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
   if ($("lx-selall-cb")) $("lx-selall-cb").addEventListener("change", (e) => setSelectAll(e.target.checked));
-  if ($("lx-upload")) $("lx-upload").addEventListener("click", uploadSelected);
+  if ($("lx-upload")) $("lx-upload").addEventListener("click", () => uploadSelected(false));
+  if ($("lx-sync")) $("lx-sync").addEventListener("click", () => uploadSelected(true));
   if ($("lx-view")) $("lx-view").addEventListener("click", () => {
     lxView = lxView === "grid" ? "list" : "grid";
     localStorage.setItem("lxView", lxView);

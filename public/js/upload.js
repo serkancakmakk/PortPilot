@@ -220,7 +220,9 @@ export function initDragDrop() {
       // Geriye dönük uyum: eski biçim düz dizi olabilir.
       const paths = Array.isArray(payload) ? payload : (payload && payload.paths) || [];
       const folders = (payload && payload.folders) || [];
-      if (paths.length) import("./local-explorer.js").then((m) => m.uploadLocalPaths(paths, folders));
+      if (paths.length) import("./transfer-queue.js").then((tq) =>
+        tq.enqueueTransfer(`${paths.length} öğe yükle`, () =>
+          import("./local-explorer.js").then((m) => m.uploadLocalPaths(paths, folders))));
       return;
     }
 
@@ -251,7 +253,7 @@ export function initDragDrop() {
         const entries = [];
         for (const root of roots) await walkEntry(root, "", entries);
         setUploadProgress(null);
-        if (entries.length) return uploadEntries(entries);
+        if (entries.length) return queueEntries(`Klasör yükle (${entries.length} dosya)`, entries);
         if (hasDir) return toast("Klasör boş görünüyor ya da okunamadı.", true);
       } catch (err) {
         setUploadProgress(null);
@@ -260,9 +262,15 @@ export function initDragDrop() {
     }
     const files = dt.files;
     if (files && files.length)
-      uploadEntries(Array.from(files).map((f) => ({ file: f, rel: f.webkitRelativePath || f.name })));
+      queueEntries(`${files.length} dosya yükle`, Array.from(files).map((f) => ({ file: f, rel: f.webkitRelativePath || f.name })));
     else toast("Sürüklenen öğede yüklenebilir dosya yok.", true);
   });
+}
+
+// uploadEntries'i transfer kuyruğuna ekler (sıraya alır, üst üste binmez).
+function queueEntries(label, entries) {
+  if (!entries || !entries.length) return;
+  import("./transfer-queue.js").then((tq) => tq.enqueueTransfer(label, () => uploadEntries(entries)));
 }
 
 function readAllEntries(reader) {

@@ -91,15 +91,21 @@ export function rememberLocalPaths(absPaths) {
 }
 
 // Kayıtlı bir yerel klasörü diskten okuyup sunucudaki güncel dizine yeniden yükler.
-async function reuploadLocal(it, btn) {
-  // Çakışma/eşzamanlılık seçeneklerini sor (normal yükleme gibi).
-  const { askUploadOptions } = await import("./upload.js");
-  const opts = await askUploadOptions([], `“${it.name}” yeniden yüklenecek → ${cwd}`);
-  if (!opts) return; // iptal
+// sync=true → seçenek sormaz, yalnızca değişen/yeni dosyaları gönderir.
+async function reuploadLocal(it, btn, sync) {
+  let opts;
+  if (sync) {
+    opts = { conflict: "overwrite_size_newer", concurrency: 4 };
+  } else {
+    // Çakışma/eşzamanlılık seçeneklerini sor (normal yükleme gibi).
+    const { askUploadOptions } = await import("./upload.js");
+    opts = await askUploadOptions([], `“${it.name}” yeniden yüklenecek → ${cwd}`);
+    if (!opts) return; // iptal
+  }
 
   const orig = btn.textContent;
   btn.disabled = true;
-  btn.textContent = "Yükleniyor…";
+  btn.textContent = sync ? "Senkronize…" : "Yükleniyor…";
   try {
     const res = await fetch("/api/upload-local", {
       method: "POST",
@@ -139,12 +145,13 @@ async function reuploadLocal(it, btn) {
       toast(last.error, true);
     } else {
       const c = (last && last.count) || 0;
-      const extra = last && last.skipped ? `, ${last.skipped} atlandı` : "";
-      toast(`“${it.name}” yeniden yüklendi (${c} dosya${extra})`);
+      const skipped = last && last.skipped ? last.skipped : 0;
+      if (sync) toast(`“${it.name}” senkronize edildi (${c} değişen${skipped ? `, ${skipped} güncel` : ""})`);
+      else toast(`“${it.name}” yeniden yüklendi (${c} dosya${skipped ? `, ${skipped} atlandı` : ""})`);
       navigate(cwd); // listeyi tazele
     }
   } catch (e) {
-    toast(e.message || "Yeniden yükleme başarısız", true);
+    toast(e.message || (sync ? "Senkronizasyon başarısız" : "Yeniden yükleme başarısız"), true);
   } finally {
     btn.disabled = false;
     btn.textContent = orig;
@@ -210,8 +217,16 @@ export function renderRecentLocal() {
     reup.title = "Bu klasörün güncel halini bulunduğun dizine yeniden yükle";
     reup.addEventListener("click", () => reuploadLocal(it, reup));
 
+    const sync = document.createElement("button");
+    sync.type = "button";
+    sync.className = "rl-btn rl-sync";
+    sync.textContent = "Senkronize";
+    sync.title = "Yalnızca değişen/yeni dosyaları gönder (aynıları atlanır)";
+    sync.addEventListener("click", () => reuploadLocal(it, sync, true));
+
     actions.appendChild(openBtn);
     actions.appendChild(reup);
+    actions.appendChild(sync);
     card.appendChild(top);
     card.appendChild(pathEl);
     card.appendChild(actions);

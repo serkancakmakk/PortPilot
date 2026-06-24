@@ -117,7 +117,7 @@ export function initToolbar() {
 
   $("file-input").addEventListener("change", (e) => {
     const entries = Array.from(e.target.files).map((f) => ({ file: f, rel: f.webkitRelativePath || f.name }));
-    import("./upload.js").then((m) => m.uploadEntries(entries));
+    queueUpload(`${entries.length} dosya yükle`, entries);
   });
   if ($("folder-input")) {
     if ($("btn-upload-folder")) $("btn-upload-folder").addEventListener("click", pickFolder);
@@ -125,8 +125,15 @@ export function initToolbar() {
       const files = Array.from(e.target.files);
       import("./recent-local.js").then((m) => m.rememberLocalFolder(files));
       const entries = files.map((f) => ({ file: f, rel: f.webkitRelativePath || f.name }));
-      import("./upload.js").then((m) => m.uploadEntries(entries));
+      queueUpload(`Klasör yükle (${entries.length} dosya)`, entries);
       $("folder-input").value = "";
     });
   }
+}
+
+// Yüklemeyi transfer kuyruğuna ekle (sıraya alır, üst üste binmez).
+function queueUpload(label, entries) {
+  if (!entries.length) return;
+  import("./transfer-queue.js").then((tq) =>
+    tq.enqueueTransfer(label, () => import("./upload.js").then((m) => m.uploadEntries(entries))));
 }

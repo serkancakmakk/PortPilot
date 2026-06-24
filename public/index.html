@@ -254,6 +254,7 @@
         <div class="lx-list" id="lx-list"></div>
         <div class="lx-foot">
           <span class="lx-info" id="lx-info">Klasörleri/dosyaları seç ya da yukarıdaki yükleme alanına sürükle.</span>
+          <button type="button" id="lx-sync" class="btn btn-sm tbtn" title="Yalnızca değişen/yeni dosyaları gönder (aynıları atlanır)" disabled><span class="nav-ico-wrap" data-icon="refresh"></span> Senkronize Et</button>
           <button type="button" id="lx-upload" class="btn btn-sm tbtn primary" disabled><span class="nav-ico-wrap" data-icon="upload"></span> Seçilenleri Yükle</button>
         </div>
       </div>
@@ -328,6 +329,19 @@
       </div>
       <div class="docker-body" id="systools-body"></div>
     </div>
+  </div>
+
+  <!-- Transfer kuyruğu paneli -->
+  <div id="tq-panel" class="tq-panel" hidden>
+    <div class="tq-head">
+      <span class="tq-title">Aktarımlar</span>
+      <span class="tq-counts" id="tq-counts"></span>
+      <div class="spacer"></div>
+      <button type="button" id="tq-pause" class="tq-btn">Duraklat</button>
+      <button type="button" id="tq-clear" class="tq-btn">Temizle</button>
+      <button type="button" id="tq-hide" class="tq-btn" title="Gizle">✕</button>
+    </div>
+    <div class="tq-list" id="tq-list"></div>
   </div>
 
   <!-- Konteyner terminali -->
