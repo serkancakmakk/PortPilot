@@ -25,7 +25,8 @@ export async function uploadEntries(entries) {
   const targetDir = cwd;
   // Dosya sayısı/boyutları + adları (kalan dosya + hangi dosya gösterimi için)
   let acc = 0;
-  const cum = entries.map(({ file }) => (acc += (file && file.size) || 0));
+  const cum = entries.map(({ file }) => (
+    acc += (file && file.size) || 0));
   const names = entries.map(({ rel, file }) => (rel || (file && file.name) || "dosya").split("/").pop());
   _progState = { total: entries.length, cum, totalBytes: acc || 1, names };
   setUploadProgress(0);
@@ -190,7 +191,7 @@ export function initDragDrop() {
     if (!explorerActive()) return;
     e.preventDefault();
     dragDepth++;
-    if (hasFiles(e)) { $("drop-hint").hidden = false; $("dropzone").classList.add("dragging"); }
+    if (hasFiles(e)) { $("drop-hint").hidden = false; if ($("dropzone")) $("dropzone").classList.add("dragging"); }
   });
   window.addEventListener("dragover", (e) => {
     if (!explorerActive()) return;
@@ -200,14 +201,14 @@ export function initDragDrop() {
   window.addEventListener("dragleave", (e) => {
     if (!explorerActive()) return;
     dragDepth = Math.max(0, dragDepth - 1);
-    if (dragDepth === 0) { $("drop-hint").hidden = true; $("dropzone").classList.remove("dragging"); }
+    if (dragDepth === 0) { $("drop-hint").hidden = true; if ($("dropzone")) $("dropzone").classList.remove("dragging"); }
   });
   window.addEventListener("drop", async (e) => {
     if (!explorerActive()) return;
     e.preventDefault();
     dragDepth = 0;
     $("drop-hint").hidden = true;
-    $("dropzone").classList.remove("dragging");
+    if ($("dropzone")) $("dropzone").classList.remove("dragging");
     const dt = e.dataTransfer;
     if (!dt) return;
 

@@ -224,17 +224,16 @@
 
       <div id="empty" class="empty" hidden>Bu klasör boş</div>
 
-      <!-- Tıklayınca dosya/klasör seçtiren / sürükle-bırak alanı -->
-      <div id="dropzone" class="dropzone" title="Dosya veya klasör yükle">
-        <div class="dz-icon" data-icon="upload"></div>
-        <div class="dz-text"><b>Yüklemek için seç</b><br><span>ya da dosya/klasörleri buraya sürükleyip bırakın (birden çok klasör desteklenir)</span></div>
-        <div class="dz-actions">
-          <button type="button" id="dz-files" class="tbtn"><span class="nav-ico-wrap" data-icon="upload"></span> Dosya Seç</button>
-          <button type="button" id="dz-folder" class="tbtn"><span class="nav-ico-wrap" data-icon="folder-plus"></span> Klasör Seç</button>
-        </div>
-      </div>
-
       <div id="drop-hint" class="drop-hint" hidden>Dosyaları buraya bırakın</div>
+
+      <!-- Bu sunucu için bilgisayarında en son gittiğin yerel konum (gezgini orada açar) -->
+      <div id="local-last" class="local-last" hidden>
+        <div class="local-last-head">
+          <span class="nav-ico-wrap" data-icon="clock"></span>
+          <span>Bu sunucu için bilgisayarında son gittiğin konum</span>
+        </div>
+        <div class="local-last-body" id="local-last-body"></div>
+      </div>
 
       <!-- Uygulama içi yerel gezgin (Klasör Seç → masaüstünde açılır) -->
       <div id="local-explorer" class="local-explorer" hidden>

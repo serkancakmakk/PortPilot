@@ -88,6 +88,7 @@ export function activateConn(id) {
   renderTabs();
   import("./sidebar.js").then((m) => { m.renderQuickLinks(); m.renderFavorites(); });
   import("./recent-local.js").then((m) => m.renderRecentLocal()); // son klasörler host bazlı
+  import("./local-last.js").then((m) => m.renderLocalLast()); // bu sunucu için son yerel konum
   navigate(cwd, false);
   persistConns();
 }

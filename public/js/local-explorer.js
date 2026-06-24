@@ -7,6 +7,7 @@ import { cwd, session } from "./state.js";
 import { navigate } from "./explorer.js";
 import { askUploadOptions } from "./upload.js";
 import { rememberLocalPaths, renderRecentLocal } from "./recent-local.js";
+import { recordLocalPath, getLocalPathForHost, renderLocalLast } from "./local-last.js";
 
 export const LOCAL_DT_TYPE = "application/x-portpilot-local";
 
@@ -45,15 +46,20 @@ function foldersToRemember(items, dir) {
   return [...set];
 }
 
-export async function openLocalExplorer() {
+export async function openLocalExplorer(startPath) {
   if (!isDesktopApp()) return false;
   const box = $("local-explorer");
   if (!box) return false;
   box.hidden = false;
-  // Kalabalığı azalt: gezgin açıkken "son klasörler" panelini gizle.
+  // Kalabalığı azalt: gezgin açıkken alttaki panelleri gizle.
   const rl = $("recent-local");
   if (rl) rl.hidden = true;
-  if (!curPath) {
+  const ll = $("local-last");
+  if (ll) ll.hidden = true;
+  // Açılış yolu: verilen yol > bu sunucu için kayıtlı son yerel yol > mevcut > ev.
+  const start = startPath || (!curPath ? getLocalPathForHost() : "");
+  if (start) await listDir(start);
+  else if (!curPath) {
     let home = "/";
     try { home = await window.desktop.homeDir(); } catch (_) {}
     await listDir(home);
@@ -65,7 +71,8 @@ export async function openLocalExplorer() {
 function closeExplorer() {
   const box = $("local-explorer");
   if (box) box.hidden = true;
-  renderRecentLocal(); // paneli geri getir (içerik varsa)
+  renderRecentLocal(); // panelleri geri getir (içerik varsa)
+  renderLocalLast();
 }
 
 async function listDir(dir) {
@@ -83,6 +90,7 @@ async function listDir(dir) {
   renderList();
   applyView();
   updateFoot();
+  recordLocalPath(curPath); // bu sunucu için son yerel konumu hatırla
 }
 
 function renderList() {

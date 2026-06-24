@@ -101,7 +101,7 @@ export function initToolbar() {
 
   // Yükle
   $("btn-upload").addEventListener("click", () => $("file-input").click());
-  $("dropzone").addEventListener("click", (e) => {
+  if ($("dropzone")) $("dropzone").addEventListener("click", (e) => {
     if (e.target.closest("#dz-files, #dz-folder")) return;
     $("file-input").click();
   });
