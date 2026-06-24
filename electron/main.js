@@ -6,11 +6,28 @@
 
 const { app, BrowserWindow, Menu, shell, ipcMain, dialog } = require("electron");
 const path = require("path");
+const fs = require("fs");
 const { autoUpdater } = require("electron-updater");
 
 // Linux'ta paketlenmiş uygulamada chrome-sandbox çoğu kez SUID/izin sorunundan
 // uygulamanın hiç açılmamasına yol açar; bu platformda sandbox'ı kapat.
-if (process.platform === "linux") app.commandLine.appendSwitch("no-sandbox");
+if (process.platform === "linux") {
+  app.commandLine.appendSwitch("no-sandbox");
+  // /dev/shm erişilemiyor/izinsizse renderer çöker (beyaz ekran) → /tmp kullan.
+  app.commandLine.appendSwitch("disable-dev-shm-usage");
+  // Linux'ta GPU/derleyici çakışması sık sık beyaz ekrana yol açar → yazılım render.
+  app.disableHardwareAcceleration();
+}
+
+// Çökme günlüğü: açılış dahil her yakalanmayan hatayı dosyaya yaz (uzaktan teşhis için).
+function logCrash(tag, err) {
+  const msg = `[${new Date().toISOString()}] ${tag}: ${(err && err.stack) || err}\n`;
+  try { fs.appendFileSync(path.join(app.getPath("userData"), "portpilot-crash.log"), msg); } catch (_) {}
+  try { fs.appendFileSync(path.join(app.getPath("temp"), "portpilot-crash.log"), msg); } catch (_) {}
+  try { console.error(msg); } catch (_) {}
+}
+process.on("uncaughtException", (err) => { logCrash("uncaughtException", err); try { dialog.showErrorBox("PortPilot hatası", String((err && err.stack) || err)); } catch (_) {} });
+process.on("unhandledRejection", (err) => { logCrash("unhandledRejection", err); });
 
 // Kayıtlı sunucular paket içindeki salt-okunur asar'a değil, yazılabilir
 // kullanıcı veri klasörüne kaydedilsin. (server.js require edilmeden ÖNCE ayarla.)
@@ -152,7 +169,7 @@ async function createWindow() {
   // 0 → işletim sistemi boş bir port seçsin (çakışma olmaz)
   let port;
   try {
-    const started = await startServer(0);
+    const started = await startServer(0, "127.0.0.1");
     httpServer = started.server;
     port = started.port;
   } catch (e) {
@@ -181,16 +198,24 @@ async function createWindow() {
 
   // Dış bağlantılar (varsa) sistem tarayıcısında açılsın
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("http://localhost")) return { action: "allow" };
+    if (url.startsWith("http://127.0.0.1") || url.startsWith("http://localhost")) return { action: "allow" };
     shell.openExternal(url);
     return { action: "deny" };
   });
 
-  mainWindow.loadURL(`http://localhost:${port}`);
+  // localhost bazı Linux kurulumlarında ::1'e (IPv6) çözümlenip sunucuya (IPv4)
+  // ulaşamaz → beyaz ekran. 127.0.0.1 ile bu belirsizliği önle.
+  mainWindow.loadURL(`http://127.0.0.1:${port}`);
 
   mainWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
     if (code === -3) return; // ERR_ABORTED — genelde zararsız
+    logCrash("did-fail-load", `${code} ${desc} ${url}`);
     dialog.showErrorBox("Arayüz yüklenemedi", `Hata ${code}: ${desc}\n${url}`);
+  });
+
+  // Renderer çökerse (beyaz ekran) günlüğe yaz
+  mainWindow.webContents.on("render-process-gone", (_e, details) => {
+    logCrash("render-process-gone", JSON.stringify(details));
   });
 
   // Sağ tık menüsü: kes/kopyala/yapıştır/tümünü seç (her platformda çalışır)

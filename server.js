@@ -19,11 +19,11 @@ app.use(require("./routes/downloads"));
 // Doğrudan `node server.js` ile çalıştırıldığında dinle.
 // Electron (electron/main.js) içinden require edildiğinde otomatik dinleme yapma;
 // orada uygulama kendi portunu seçip startServer() çağırır.
-function startServer(port = PORT) {
+function startServer(port = PORT, host) {
   return new Promise((resolve) => {
-    const srv = app.listen(port, () => {
+    const srv = app.listen(port, host, () => {
       const real = srv.address().port;
-      console.log(`\n  PortPilot çalışıyor →  http://localhost:${real}\n`);
+      console.log(`\n  PortPilot çalışıyor →  http://${host || "localhost"}:${real}\n`);
       resolve({ server: srv, port: real });
     });
     attachTerminal(srv);
