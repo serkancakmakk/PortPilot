@@ -120,7 +120,36 @@ export function openServerTerminal(dir) {
   openTerminal("__host__", name, dir);
 }
 
+// Sağ-alt köşeden sürükleyerek terminal kutusunu boyutlandır.
+// Kutu overlay içinde ortalandığından, köşenin imleci takip etmesi için
+// boyut değişimini 2× uygularız (merkez sabit kalır, iki yana büyür).
+function initTerminalResize() {
+  const handle = $("term-resize");
+  if (!handle) return;
+  const box = handle.closest(".term-box");
+  let sx = 0, sy = 0, sw = 0, sh = 0, dragging = false;
+  const onMove = (e) => {
+    if (!dragging) return;
+    box.style.width = Math.max(360, sw + (e.clientX - sx) * 2) + "px";
+    box.style.height = Math.max(240, sh + (e.clientY - sy) * 2) + "px";
+  };
+  const onUp = () => {
+    dragging = false;
+    document.removeEventListener("pointermove", onMove);
+    document.removeEventListener("pointerup", onUp);
+    if (termState) termState.onResize();
+  };
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    const r = box.getBoundingClientRect();
+    sx = e.clientX; sy = e.clientY; sw = r.width; sh = r.height; dragging = true;
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+  });
+}
+
 export function initTerminal() {
+  initTerminalResize();
   $("term-close").addEventListener("click", closeTerminal);
   $("term-min").addEventListener("click", minimizeTerminal);
   $("term-restore").addEventListener("click", restoreTerminal);
