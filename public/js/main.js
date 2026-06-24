@@ -13,6 +13,7 @@ import { initDownloads } from "./downloads.js";
 import { initDesktop } from "./updater.js";
 import { initToolbar } from "./toolbar.js";
 import { initDragDrop } from "./upload.js";
+import { initRecentLocal } from "./recent-local.js";
 import { hideMenu, showAreaMenu } from "./context-menu.js";
 import { navigate } from "./explorer.js";
 import { cwd, activeConnId } from "./state.js";
@@ -54,6 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initDesktop();
   initToolbar();
   initDragDrop();
+  initRecentLocal();
 
   // Küçük ekran: sidebar aç/kapa (off-canvas)
   const sb = document.querySelector(".sidebar");

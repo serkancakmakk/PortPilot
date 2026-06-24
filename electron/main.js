@@ -173,6 +173,16 @@ ipcMain.handle("app:open-external", (_e, url) => {
   if (typeof url === "string" && /^https?:\/\//.test(url)) shell.openExternal(url);
 });
 
+// Kullanıcının kendi bilgisayarındaki bir klasörü/dosyayı sistem dosya
+// yöneticisinde aç. Geçersiz yol → boş string döner (shell.openPath hata mesajı).
+ipcMain.handle("fs:open-path", async (_e, p) => {
+  if (typeof p !== "string" || !p) return "Geçersiz yol";
+  try {
+    if (!fs.existsSync(p)) return "Klasör bulunamadı (taşınmış ya da silinmiş olabilir)";
+  } catch (_) {}
+  return await shell.openPath(p); // başarılıysa "" döner
+});
+
 // Güncelleme denetle: paketliyse electron-updater, değilse GitHub API bilgisi
 ipcMain.handle("app:check-update", async (_e, opts) => {
   const silent = !!(opts && opts.silent);

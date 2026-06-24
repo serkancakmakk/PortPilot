@@ -383,6 +383,126 @@ router.post("/api/upload", upload.array("files"), async (req, res) => {
   }
 });
 
+// ---- Yerel klasörü diskten okuyup yeniden yükle (masaüstü/Electron) ----
+// Sunucu masaüstünde kullanıcıyla aynı makinede çalıştığından, kayıtlı bir yerel
+// yolu fs ile gezip SFTP'ye gönderir; kullanıcının yeniden klasör seçmesine gerek kalmaz.
+router.post("/api/upload-local", express.json(), async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+
+  const localPath = req.body.localPath;
+  if (!localPath || typeof localPath !== "string")
+    return res.status(400).json({ error: "Yerel yol belirtilmedi." });
+
+  let stat;
+  try {
+    stat = fs.statSync(localPath);
+  } catch (_) {
+    return res.status(400).json({ error: "Yerel klasör bulunamadı (taşınmış ya da silinmiş olabilir)." });
+  }
+
+  const dir = resolveRemote("/", req.body.path || "/");
+  const baseName = path.basename(localPath);
+
+  // Yereldeki tüm dosyaları topla: { abs, rel, size, mtime }
+  const collected = [];
+  const walk = (absDir, relDir) => {
+    let entries;
+    try { entries = fs.readdirSync(absDir, { withFileTypes: true }); } catch (_) { return; }
+    for (const ent of entries) {
+      const abs = path.join(absDir, ent.name);
+      const rel = relDir ? relDir + "/" + ent.name : ent.name;
+      if (ent.isDirectory()) walk(abs, rel);
+      else if (ent.isFile()) {
+        let st; try { st = fs.statSync(abs); } catch (_) { continue; }
+        collected.push({ abs, rel, size: st.size, mtime: Math.floor(st.mtimeMs) });
+      }
+    }
+  };
+  if (stat.isDirectory()) walk(localPath, baseName);
+  else collected.push({ abs: localPath, rel: baseName, size: stat.size, mtime: Math.floor(stat.mtimeMs) });
+
+  if (!collected.length) return res.status(400).json({ error: "Klasörde gönderilecek dosya yok." });
+
+  const jobs = collected.map((c) => ({
+    abs: c.abs,
+    dest: resolveRemote(dir, c.rel),
+    srcMtime: c.mtime,
+    size: c.size,
+  }));
+
+  const conflict = CONFLICT_MODES.includes(req.body.conflict) ? req.body.conflict : "overwrite";
+  let concurrency = parseInt(req.body.concurrency, 10);
+  if (!Number.isFinite(concurrency)) concurrency = UPLOAD_CONCURRENCY;
+  concurrency = Math.min(8, Math.max(1, concurrency));
+
+  let skipped = 0, renamed = 0;
+
+  res.setHeader("Content-Type", "application/x-ndjson; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache");
+  let clientGone = false;
+  res.on("error", () => {});
+  req.on("aborted", () => { clientGone = true; });
+  const send = (o) => {
+    if (clientGone) return;
+    try { res.write(JSON.stringify(o) + "\n"); } catch (_) { clientGone = true; }
+  };
+
+  const total = jobs.length;
+  let done = 0, lastSent = 0;
+  const step = Math.max(1, Math.floor(total / 100));
+  send({ total });
+
+  try {
+    // 1) Gerekli üst klasörleri oluştur
+    const dirsNeeded = new Set();
+    for (const j of jobs) {
+      let d = path.posix.dirname(j.dest);
+      while (d && d.length > dir.length && !dirsNeeded.has(d)) {
+        dirsNeeded.add(d);
+        d = path.posix.dirname(d);
+      }
+    }
+    for (const d of [...dirsNeeded].sort((a, b) => a.length - b.length)) {
+      try { await s.fs.mkdir(d); } catch (_) {}
+    }
+
+    // 2) Dosyaları yükle
+    const errors = await runPool(jobs, concurrency, async (j) => {
+      try {
+        let dest = j.dest;
+        const action = await resolveConflict(s, dest, conflict, j.size, j.srcMtime);
+        if (action === "skip") { skipped++; return; }
+        if (action === "rename") { dest = await uniqueRemoteName(s, dest); renamed++; }
+        const rs = fs.createReadStream(j.abs);
+        try {
+          await s.fs.uploadStream(rs, dest);
+        } finally {
+          try { rs.destroy(); } catch (_) {}
+        }
+      } finally {
+        done++;
+        if (done - lastSent >= step || done === total) { lastSent = done; send({ done }); }
+      }
+    });
+
+    const uploaded = jobs.length - errors.length - skipped;
+    if (errors.length) {
+      const first = errors[0];
+      send({
+        error: `${errors.length} dosya yüklenemedi (ör. ${path.posix.basename(first.item.dest)}: ${first.error.message})`,
+        count: uploaded, skipped, renamed, failed: errors.length,
+      });
+    } else {
+      send({ ok: true, count: uploaded, skipped, renamed });
+    }
+    res.end();
+  } catch (err) {
+    send({ error: "Yükleme hatası: " + err.message });
+    res.end();
+  }
+});
+
 // ---- Yeni klasör ----
 router.post("/api/mkdir", async (req, res) => {
   const s = getSession(req, res);

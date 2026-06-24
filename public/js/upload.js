@@ -205,6 +205,20 @@ export function initDragDrop() {
     if (!dt) return;
 
     const items = dt.items ? Array.from(dt.items) : [];
+    // Masaüstünde sürüklenen klasörlerin diskteki yolunu hatırla. DataTransferItem
+    // yalnızca bu olay sırasında geçerli; yolları SENKRON topla, sonra kaydet.
+    if (window.desktop && window.desktop.getFilePath) {
+      const dirPaths = [];
+      for (const it of items) {
+        if (it.kind !== "file" || typeof it.webkitGetAsEntry !== "function") continue;
+        const entry = it.webkitGetAsEntry();
+        if (!entry || !entry.isDirectory) continue;
+        const f = it.getAsFile && it.getAsFile();
+        const abs = f && window.desktop.getFilePath(f);
+        if (abs) dirPaths.push(abs);
+      }
+      if (dirPaths.length) import("./recent-local.js").then((m) => m.rememberLocalPaths(dirPaths));
+    }
     const roots = items
       .filter((it) => it.kind === "file" && typeof it.webkitGetAsEntry === "function")
       .map((it) => it.webkitGetAsEntry())

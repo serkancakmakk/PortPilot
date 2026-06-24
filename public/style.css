@@ -1003,6 +1003,99 @@ tr.dir .fname {
   backdrop-filter: blur(1px);
 }
 
+/* ---- Bilgisayardaki son kullanılan klasörler ---- */
+.recent-local {
+  margin: 14px 0 4px;
+}
+.recent-local-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted, #6b7280);
+  margin-bottom: 10px;
+}
+.recent-local-head .nav-ico-wrap { display: inline-flex; }
+.recent-local-clear {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: var(--muted, #6b7280);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+.recent-local-clear:hover { background: rgba(0, 0, 0, .06); color: var(--text, #111); }
+.recent-local-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.recent-local-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  background: var(--card, #fff);
+  transition: border-color .12s, background .12s;
+}
+.recent-local-item:hover {
+  border-color: var(--accent, #2563eb);
+  background: rgba(37, 99, 235, .05);
+}
+.recent-local-item .rl-open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+.recent-local-item .nav-ico-wrap { color: var(--accent, #2563eb); display: inline-flex; }
+.recent-local-item .rl-text { min-width: 0; flex: 1; }
+.recent-local-item .rl-reupload {
+  flex: 0 0 auto;
+  border: 1px solid var(--accent, #2563eb);
+  background: transparent;
+  color: var(--accent, #2563eb);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.recent-local-item .rl-reupload:hover { background: var(--accent, #2563eb); color: #fff; }
+.recent-local-item .rl-reupload:disabled { opacity: .6; cursor: default; }
+.recent-local-item .rl-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text, #111);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.recent-local-empty {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  padding: 12px;
+  border: 1px dashed var(--border, #e5e7eb);
+  border-radius: 10px;
+}
+.recent-local-item .rl-path {
+  font-size: 11px;
+  color: var(--muted, #6b7280);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  direction: rtl;
+  text-align: left;
+}
+
 /* ---- Durum çubuğu ---- */
 .statusbar {
   padding: 8px 16px;
