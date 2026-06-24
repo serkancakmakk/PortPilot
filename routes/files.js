@@ -644,6 +644,103 @@ async function copyOrMove(req, res, move) {
 router.post("/api/copy", (req, res) => copyOrMove(req, res, false));
 router.post("/api/move", (req, res) => copyOrMove(req, res, true));
 
+// ---- Arşivle (sunucu üzerinde tar.gz / zip oluştur) ----
+router.post("/api/archive", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  const dir = resolveRemote("/", req.body.dir || "/");
+  let sources = Array.isArray(req.body.sources) ? req.body.sources : [];
+  // Yalnızca aktif klasördeki temel adlar (klasör geçişini engelle)
+  sources = sources
+    .filter((p) => typeof p === "string" && p)
+    .map((p) => path.posix.basename(resolveRemote("/", p)))
+    .filter((n) => n && n !== "/" && !n.includes("/"));
+  if (!sources.length) return res.status(400).json({ error: "Arşivlenecek öğe seçilmedi." });
+
+  const format = req.body.format === "zip" ? "zip" : "targz";
+  const ext = format === "zip" ? ".zip" : ".tar.gz";
+  let name = path.posix.basename(String(req.body.name || "").trim());
+  if (!name) name = sources.length === 1 ? sources[0] : "arsiv";
+  if (!name.toLowerCase().endsWith(ext))
+    name = name.replace(/\.(zip|tar\.gz|tgz|tar)$/i, "") + ext;
+
+  const out = path.posix.join(dir, name);
+  const args = sources.map(shQuote).join(" ");
+  const cmd =
+    format === "zip"
+      ? `cd ${shQuote(dir)} && zip -r -q -- ${shQuote(name)} ${args}`
+      : `tar czf ${shQuote(out)} -C ${shQuote(dir)} -- ${args}`;
+  try {
+    const r = await runCmd(s, cmd);
+    if (r.code !== 0) {
+      const msg = r.err.trim() || r.out.trim();
+      if (format === "zip" && /not found|command not found/i.test(msg))
+        return res.status(400).json({ error: "Sunucuda 'zip' komutu yüklü değil. tar.gz biçimini seçin." });
+      return res.status(400).json({ error: msg || "Arşivlenemedi." });
+    }
+    res.json({ ok: true, name });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ---- Çıkar (arşivi sunucu üzerinde aç) ----
+router.post("/api/extract", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!req.body.path) return res.status(400).json({ error: "Arşiv yolu gerekli." });
+  const archive = resolveRemote("/", req.body.path);
+  const lower = archive.toLowerCase();
+  // Hedef: verilmişse o klasör, yoksa arşivin bulunduğu klasör
+  const dir = req.body.dest ? resolveRemote("/", req.body.dest) : path.posix.dirname(archive);
+
+  let cmd;
+  if (/\.(tar\.gz|tgz)$/.test(lower)) cmd = `tar xzf ${shQuote(archive)} -C ${shQuote(dir)}`;
+  else if (/\.(tar\.bz2|tbz2?)$/.test(lower)) cmd = `tar xjf ${shQuote(archive)} -C ${shQuote(dir)}`;
+  else if (/\.(tar\.xz|txz)$/.test(lower)) cmd = `tar xJf ${shQuote(archive)} -C ${shQuote(dir)}`;
+  else if (/\.tar$/.test(lower)) cmd = `tar xf ${shQuote(archive)} -C ${shQuote(dir)}`;
+  else if (/\.zip$/.test(lower)) cmd = `cd ${shQuote(dir)} && unzip -o -- ${shQuote(archive)}`;
+  else if (/\.gz$/.test(lower)) cmd = `gunzip -kf -- ${shQuote(archive)}`;
+  else return res.status(400).json({ error: "Desteklenmeyen arşiv türü (.tar.gz/.tar/.zip/.gz)." });
+
+  try {
+    const r = await runCmd(s, cmd);
+    if (r.code !== 0) {
+      const msg = r.err.trim() || r.out.trim();
+      if (/\.zip$/.test(lower) && /not found|command not found/i.test(msg))
+        return res.status(400).json({ error: "Sunucuda 'unzip' komutu yüklü değil." });
+      return res.status(400).json({ error: msg || "Çıkarılamadı." });
+    }
+    res.json({ ok: true, dir });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ---- Toplu yeniden adlandırma ----
+// İstemci yeni adları hesaplar; burada {from,to} çiftleri sırayla uygulanır.
+router.post("/api/rename-batch", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  let pairs = Array.isArray(req.body.items) ? req.body.items : [];
+  pairs = pairs
+    .map((p) => ({
+      from: resolveRemote("/", (p && p.from) || ""),
+      to: resolveRemote("/", (p && p.to) || ""),
+    }))
+    .filter((p) => p.from && p.to && p.from !== p.to && !path.posix.basename(p.to).includes("/"));
+  if (!pairs.length) return res.status(400).json({ error: "Değişecek ad bulunamadı." });
+
+  let done = 0;
+  const errors = [];
+  for (const p of pairs) {
+    try { await s.fs.rename(p.from, p.to); done++; }
+    catch (e) { errors.push(path.posix.basename(p.from) + ": " + e.message); }
+  }
+  res.json({
+    ok: errors.length === 0,
+    done,
+    failed: errors.length,
+    error: errors.length ? errors.slice(0, 3).join(" · ") : undefined,
+  });
+});
+
 // ---- Sunucudan sunucuya aktarım ----
 // Kaynak (aktif oturum) → hedef (body.target oturumu). Sunucu, baytları iki SFTP
 // bağlantısı arasında relay eder (PassThrough). NDJSON ilerleme akışı döndürür.

@@ -9,6 +9,8 @@ const menu = $("context-menu");
 
 // Önizlenebilir uzantılar (resim/PDF)
 const PREVIEW_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|pdf)$/i;
+// Çıkarılabilir arşiv uzantıları
+const ARCHIVE_EXT = /\.(tar\.gz|tgz|tar\.bz2|tbz2?|tar\.xz|txz|tar|zip|gz)$/i;
 
 // Pano: kopyala/kes ile dolar, yapıştır ile uygulanır → { mode:'copy'|'move', paths:[] }
 let clipboard = null;
@@ -26,6 +28,8 @@ export function showContextMenu(e, item) {
     if (isEditable(item.name))
       actions.push({ label: "📝 Düzenle", fn: () => import("./editor.js").then((m) => m.editFile(item, full)) });
     actions.push({ label: "⬇ İndir", fn: () => downloadFile(full) });
+    if (ARCHIVE_EXT.test(item.name))
+      actions.push({ label: "📦 Buraya çıkar", fn: () => import("./archive.js").then((m) => m.extractArchive(item, full)) });
   }
   actions.push({ sep: true });
   // Çoklu seçim varsa kopyala/kes hepsine uygulanır; yoksa bu öğeye.
@@ -35,8 +39,12 @@ export function showContextMenu(e, item) {
   actions.push({ label: n > 1 ? `✂ Kes (${n})` : "✂ Kes", fn: () => setClipboard("move", sel) });
   if (connections.length > 1)
     actions.push({ label: n > 1 ? `➡ Başka sunucuya aktar (${n})…` : "➡ Başka sunucuya aktar…", fn: () => import("./transfer-remote.js").then((m) => m.showRemoteTransfer(sel)) });
+  actions.push({ label: n > 1 ? `🗜 Arşivle (${n})…` : "🗜 Arşivle…", fn: () => import("./archive.js").then((m) => m.archiveItems(sel)) });
   actions.push({ label: "🔒 İzinler…", fn: () => chmodItem(item, full) });
-  actions.push({ label: "✏ Yeniden adlandır", fn: () => renameItem(item, full) });
+  if (n > 1)
+    actions.push({ label: `✏ Toplu yeniden adlandır (${n})…`, fn: () => batchRenameSelected(item) });
+  else
+    actions.push({ label: "✏ Yeniden adlandır", fn: () => renameItem(item, full) });
   actions.push({ sep: true });
   actions.push({ label: "ℹ Özellikler", fn: () => import("./properties.js").then((m) => m.showProperties(item, full)) });
   actions.push({ label: "🗑 Sil", danger: true, fn: () => deleteItem(item, full) });
@@ -67,6 +75,13 @@ function selectionPaths(item, full) {
   if (checked.length && checked.some((it) => it.name === item.name))
     return checked.map((it) => joinPath(cwd, it.name));
   return [full];
+}
+
+// Seçili öğeleri (item nesneleri) toplu yeniden adlandırmaya gönder
+function batchRenameSelected(item) {
+  const checked = checkedItems();
+  const items = checked.length && checked.some((it) => it.name === item.name) ? checked : [item];
+  import("./batch-rename.js").then((m) => m.batchRename(items));
 }
 
 function setClipboard(mode, paths) {

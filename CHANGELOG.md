@@ -2,6 +2,11 @@
 
 ## Yeni
 
+**Dosya gezgini — yeni**
+- 🗜️ **Arşivle / çıkar:** Bir veya birden çok öğeye sağ tık → "Arşivle…" ile sunucu üzerinde **.tar.gz** veya **.zip** oluştur; bir arşive sağ tık → "Buraya çıkar" ile (`.tar.gz`/`.tar`/`.zip`/`.gz` …) bulunduğu klasöre aç.
+- ✏️ **Toplu yeniden adlandırma:** Birden çok öğe seçip sağ tık → "Toplu yeniden adlandır…" ile **bul/değiştir (regex)** veya **sıralı isimlendirme** (`{name}`, `{n}`, başlangıç + basamak) uygula; **canlı önizleme** ve çakışma uyarısı.
+- ↧ **Sürükleyip indirme:** Dosya/klasörü listeden bilgisayarına sürükleyip bırakarak indir (klasörler `.tar.gz` olarak).
+
 **Dosya yönetimi**
 - 💾 **İndirirken "Nereye kaydedeyim?":** Masaüstü uygulamasında dosya/klasör indirirken sistem **Kaydet** penceresi açılır; istediğin klasörü seçersin ve son seçtiğin konum sonraki indirme için hatırlanır.
 - 🐛 **İndirme düzeltmesi:** Bazı durumlarda indirmenin hiç başlamamasına yol açan hata (`session is not defined`) giderildi.
@@ -40,12 +45,6 @@
 - 🔢 Sürüm rozeti gerçek sürümü gösteriyor.
 
 ## Yol haritası (sıradaki sürümlerde)
-
-**Dosya gezgini**
-- ↧ **Sürükleyip indirme:** Dosyayı listeden bilgisayara sürükleyip bırakarak indir.
-- 🗜️ **Arşivle / çıkar:** Sağ tık → sunucu üzerinde `tar`/`zip` ile arşivle veya `.zip`/`.tar.gz` dosyasını "buraya çıkar".
-- 🔖 **Yer imleri:** Sık kullanılan uzak klasörleri kaydedip sidebar'dan tek tıkla aç.
-- ✏️ **Toplu yeniden adlandırma:** Birden çok dosyayı regex / sıralı isimlendirme ile topluca yeniden adlandır.
 
 **Bağlantı & sunucular**
 - 🛠️ **Bağlantı düzenleme:** Kayıtlı sunucuyu silmeden host/port/kullanıcı güncelleme; klasör/etiket ile gruplama.

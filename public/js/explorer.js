@@ -194,6 +194,9 @@ function wireEntry(el, item) {
   cb._item = item;
   cb.addEventListener("click", (e) => e.stopPropagation());
   cb.addEventListener("change", () => { el.classList.toggle("checked", cb.checked); syncCheckState(); });
+  // Sürükleyip masaüstüne/bir klasöre bırakarak indir (Chrome/Electron DownloadURL).
+  el.draggable = true;
+  el.addEventListener("dragstart", (e) => dragOut(e, item));
   el.addEventListener("click", () => selectEl(el, item));
   el.addEventListener("dblclick", () => openItem(item));
   el.addEventListener("contextmenu", (e) => {
@@ -201,6 +204,26 @@ function wireEntry(el, item) {
     selectEl(el, item);
     import("./context-menu.js").then((m) => m.showContextMenu(e, item));
   });
+}
+
+// Sürükle-bırakla indirme: bırakılınca tarayıcı/Electron, DownloadURL'i indirir.
+// Klasörler .tar.gz olarak akıtılır (download-folder), dosyalar doğrudan.
+function dragOut(e, item) {
+  try {
+    const full = joinPath(cwd, item.name);
+    let url, fname;
+    if (item.type === "dir") {
+      fname = item.name + ".tar.gz";
+      url = "/api/download-folder?session=" + encodeURIComponent(session) + "&path=" + encodeURIComponent(full);
+    } else {
+      fname = item.name;
+      url = "/api/download?session=" + encodeURIComponent(session) + "&path=" + encodeURIComponent(full);
+    }
+    const abs = new URL(url, location.origin).href;
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("DownloadURL", `application/octet-stream:${fname}:${abs}`);
+    e.dataTransfer.setData("text/uri-list", abs);
+  } catch (_) {}
 }
 
 export function selectEl(el, item) {
