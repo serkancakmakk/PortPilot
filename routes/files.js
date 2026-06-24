@@ -390,21 +390,18 @@ router.post("/api/upload-local", express.json(), async (req, res) => {
   const s = getSession(req, res);
   if (!s) return;
 
-  const localPath = req.body.localPath;
-  if (!localPath || typeof localPath !== "string")
+  // Tek yol (localPath) ya da çoklu yol (localPaths) kabul et.
+  let localPaths = req.body.localPaths;
+  if (!Array.isArray(localPaths)) localPaths = [];
+  if (req.body.localPath && typeof req.body.localPath === "string")
+    localPaths = [req.body.localPath, ...localPaths];
+  localPaths = localPaths.filter((p) => typeof p === "string" && p);
+  if (!localPaths.length)
     return res.status(400).json({ error: "Yerel yol belirtilmedi." });
 
-  let stat;
-  try {
-    stat = fs.statSync(localPath);
-  } catch (_) {
-    return res.status(400).json({ error: "Yerel klasör bulunamadı (taşınmış ya da silinmiş olabilir)." });
-  }
-
   const dir = resolveRemote("/", req.body.path || "/");
-  const baseName = path.basename(localPath);
 
-  // Yereldeki tüm dosyaları topla: { abs, rel, size, mtime }
+  // Seçilen her yolu (klasör veya dosya) gezerek tüm dosyaları topla.
   const collected = [];
   const walk = (absDir, relDir) => {
     let entries;
@@ -419,10 +416,15 @@ router.post("/api/upload-local", express.json(), async (req, res) => {
       }
     }
   };
-  if (stat.isDirectory()) walk(localPath, baseName);
-  else collected.push({ abs: localPath, rel: baseName, size: stat.size, mtime: Math.floor(stat.mtimeMs) });
+  for (const lp of localPaths) {
+    let stat;
+    try { stat = fs.statSync(lp); } catch (_) { continue; }
+    const baseName = path.basename(lp);
+    if (stat.isDirectory()) walk(lp, baseName);
+    else collected.push({ abs: lp, rel: baseName, size: stat.size, mtime: Math.floor(stat.mtimeMs) });
+  }
 
-  if (!collected.length) return res.status(400).json({ error: "Klasörde gönderilecek dosya yok." });
+  if (!collected.length) return res.status(400).json({ error: "Gönderilecek dosya bulunamadı." });
 
   const jobs = collected.map((c) => ({
     abs: c.abs,

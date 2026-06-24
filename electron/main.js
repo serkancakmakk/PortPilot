@@ -183,6 +183,32 @@ ipcMain.handle("fs:open-path", async (_e, p) => {
   return await shell.openPath(p); // başarılıysa "" döner
 });
 
+// Uygulama içi yerel gezgin için: başlangıç (ev) klasörü.
+ipcMain.handle("fs:home", () => app.getPath("home"));
+
+// Yerel bir klasörü listele (uygulama içi gezgin). Klasörler önce, ada göre sıralı.
+ipcMain.handle("fs:list", (_e, dir) => {
+  try {
+    const target = dir && typeof dir === "string" ? dir : app.getPath("home");
+    const resolved = path.resolve(target);
+    const ents = fs.readdirSync(resolved, { withFileTypes: true });
+    const entries = [];
+    for (const ent of ents) {
+      let isDir = ent.isDirectory();
+      if (ent.isSymbolicLink()) {
+        try { isDir = fs.statSync(path.join(resolved, ent.name)).isDirectory(); } catch (_) { continue; }
+      }
+      entries.push({ name: ent.name, isDir });
+    }
+    entries.sort((a, b) =>
+      a.isDir !== b.isDir ? (a.isDir ? -1 : 1) : a.name.localeCompare(b.name, "tr"));
+    const parent = path.dirname(resolved);
+    return { ok: true, path: resolved, parent: parent === resolved ? null : parent, entries };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 // Güncelleme denetle: paketliyse electron-updater, değilse GitHub API bilgisi
 ipcMain.handle("app:check-update", async (_e, opts) => {
   const silent = !!(opts && opts.silent);

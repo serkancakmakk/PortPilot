@@ -73,6 +73,11 @@ export function rememberLocalPaths(absPaths) {
 
 // Kayıtlı bir yerel klasörü diskten okuyup sunucudaki güncel dizine yeniden yükler.
 async function reuploadLocal(it, btn) {
+  // Çakışma/eşzamanlılık seçeneklerini sor (normal yükleme gibi).
+  const { askUploadOptions } = await import("./upload.js");
+  const opts = await askUploadOptions([], `“${it.name}” yeniden yüklenecek → ${cwd}`);
+  if (!opts) return; // iptal
+
   const orig = btn.textContent;
   btn.disabled = true;
   btn.textContent = "Yükleniyor…";
@@ -83,7 +88,7 @@ async function reuploadLocal(it, btn) {
         "Content-Type": "application/json",
         ...(session ? { "x-session": session } : {}),
       },
-      body: JSON.stringify({ path: cwd, localPath: it.path, conflict: "overwrite" }),
+      body: JSON.stringify({ path: cwd, localPath: it.path, conflict: opts.conflict, concurrency: opts.concurrency }),
     });
     if (!res.ok && res.status === 401) {
       import("./connections.js").then((m) => m.logout());
@@ -147,34 +152,61 @@ export function renderRecentLocal() {
   }
   listEl.innerHTML = "";
   for (const it of list) {
-    const row = document.createElement("div");
-    row.className = "recent-local-item";
+    const card = document.createElement("div");
+    card.className = "recent-local-item";
 
-    const open = document.createElement("div");
-    open.className = "rl-open";
-    open.title = "Bilgisayarında aç: " + it.path;
-    open.innerHTML =
-      '<span class="nav-ico-wrap" data-icon="folder"></span>' +
-      '<span class="rl-text"><div class="rl-name"></div><div class="rl-path"></div></span>';
-    open.querySelector(".rl-name").textContent = it.name;
-    open.querySelector(".rl-path").textContent = it.path;
-    open.addEventListener("click", async () => {
+    const top = document.createElement("div");
+    top.className = "rl-top";
+    top.innerHTML = '<span class="nav-ico-wrap" data-icon="folder"></span><div class="rl-name"></div>';
+    top.querySelector(".rl-name").textContent = it.name;
+
+    const pathEl = document.createElement("div");
+    pathEl.className = "rl-path";
+    pathEl.textContent = it.path;
+    pathEl.title = it.path;
+
+    const actions = document.createElement("div");
+    actions.className = "rl-actions";
+
+    const openBtn = document.createElement("button");
+    openBtn.type = "button";
+    openBtn.className = "rl-btn rl-open";
+    openBtn.textContent = "Aç";
+    openBtn.title = "Bilgisayarında aç";
+    openBtn.addEventListener("click", async () => {
       const err = await window.desktop.openPath(it.path);
       if (err) toast(err, true);
     });
 
     const reup = document.createElement("button");
     reup.type = "button";
-    reup.className = "rl-reupload";
+    reup.className = "rl-btn rl-reupload";
     reup.textContent = "Tekrar Yükle";
     reup.title = "Bu klasörün güncel halini bulunduğun dizine yeniden yükle";
-    reup.addEventListener("click", (e) => { e.stopPropagation(); reuploadLocal(it, reup); });
+    reup.addEventListener("click", () => reuploadLocal(it, reup));
 
-    row.appendChild(open);
-    row.appendChild(reup);
-    listEl.appendChild(row);
+    actions.appendChild(openBtn);
+    actions.appendChild(reup);
+    card.appendChild(top);
+    card.appendChild(pathEl);
+    card.appendChild(actions);
+    listEl.appendChild(card);
   }
   applyIcons(listEl);
+}
+
+// Manuel girilen bir yolu doğrulayıp listeye ekler (klasör olmalı).
+async function addManualPath(raw) {
+  const p = (raw || "").trim();
+  if (!p) return;
+  if (window.desktop && window.desktop.listDir) {
+    const r = await window.desktop.listDir(p).catch(() => null);
+    if (!r || !r.ok) { toast("Klasör bulunamadı: " + p, true); return; }
+    addRecent(r.path); // normalize edilmiş yol
+  } else {
+    addRecent(p);
+  }
+  toast("Klasör eklendi");
 }
 
 // Kalıcı kaynaktan (prefs.json) yükle. Sunucuda yoksa localStorage önbelleğindeki
@@ -203,6 +235,14 @@ export function initRecentLocal() {
       saveRecentLocal([]); // hem önbelleği hem sunucuyu temizle
       renderRecentLocal();
     });
+  }
+  // Manuel yol ekleme
+  const addBtn = $("recent-local-add-btn");
+  const input = $("recent-local-path");
+  if (addBtn && input) {
+    const submit = () => { addManualPath(input.value); input.value = ""; };
+    addBtn.addEventListener("click", submit);
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
   }
   renderRecentLocal();   // önce önbellekten anında göster
   loadFromServer();      // sonra kalıcı kaynaktan tazele

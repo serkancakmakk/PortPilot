@@ -106,14 +106,21 @@ export function initToolbar() {
     $("file-input").click();
   });
   if ($("dz-files")) $("dz-files").addEventListener("click", () => $("file-input").click());
-  if ($("dz-folder")) $("dz-folder").addEventListener("click", () => $("folder-input").click());
+  // Masaüstünde "Klasör Seç" uygulama içi gezgini açar (çoklu seçim + sürükle-bırak);
+  // tarayıcıda klasik klasör seçiciye düşer.
+  const pickFolder = () => {
+    if (window.desktop && window.desktop.listDir)
+      import("./local-explorer.js").then((m) => m.openLocalExplorer());
+    else $("folder-input").click();
+  };
+  if ($("dz-folder")) $("dz-folder").addEventListener("click", pickFolder);
 
   $("file-input").addEventListener("change", (e) => {
     const entries = Array.from(e.target.files).map((f) => ({ file: f, rel: f.webkitRelativePath || f.name }));
     import("./upload.js").then((m) => m.uploadEntries(entries));
   });
   if ($("folder-input")) {
-    if ($("btn-upload-folder")) $("btn-upload-folder").addEventListener("click", () => $("folder-input").click());
+    if ($("btn-upload-folder")) $("btn-upload-folder").addEventListener("click", pickFolder);
     $("folder-input").addEventListener("change", (e) => {
       const files = Array.from(e.target.files);
       import("./recent-local.js").then((m) => m.rememberLocalFolder(files));

@@ -15,6 +15,9 @@ contextBridge.exposeInMainWorld("desktop", {
   },
   // Yerel bir klasörü/dosyayı sistem dosya yöneticisinde aç.
   openPath: (p) => ipcRenderer.invoke("fs:open-path", p),
+  // Uygulama içi yerel gezgin: ev klasörü ve klasör listeleme.
+  homeDir: () => ipcRenderer.invoke("fs:home"),
+  listDir: (p) => ipcRenderer.invoke("fs:list", p),
   // Güncelleme olaylarını dinle (available/downloading/downloaded/latest/error)
   onUpdate: (cb) => {
     const handler = (_e, payload) => cb(payload);

@@ -2,6 +2,9 @@ import { $, showLoading, toast } from "./dom.js";
 import { session, cwd, uploadPrefs, setUploadPrefs, pushTransfer } from "./state.js";
 import { navigate, fmtSize } from "./explorer.js";
 
+// Uygulama içi yerel gezginden sürüklenen öğeler bu DataTransfer türüyle gelir.
+const LOCAL_DT_TYPE = "application/x-portpilot-local";
+
 export async function uploadEntries(entries) {
   entries = (entries || []).filter((e) => e && e.file);
   if (!entries.length) { toast("Yüklenecek dosya bulunamadı.", true); return; }
@@ -49,13 +52,14 @@ export async function uploadEntries(entries) {
   }
 }
 
-function askUploadOptions(entries) {
+export function askUploadOptions(entries, summaryText) {
   return new Promise((resolve) => {
     const dlg = $("upload-options");
     if (!dlg) return resolve({ conflict: "overwrite", concurrency: 4, remember: false });
     let bytes = 0;
     for (const e of entries) bytes += (e.file && e.file.size) || 0;
-    $("uo-summary").textContent = `${entries.length} dosya (${fmtSize(bytes)}) → ${cwd}`;
+    $("uo-summary").textContent = summaryText
+      || `${entries.length} dosya (${fmtSize(bytes)}) → ${cwd}`;
     $("uo-remember").checked = false;
     dlg.hidden = false;
     const cleanup = () => {
@@ -177,7 +181,10 @@ export function initDragDrop() {
 
   let dragDepth = 0;
   const explorerActive = () => !$("explorer").hidden && $("editor").hidden;
-  const hasFiles = (e) => e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files");
+  const hasFiles = (e) => {
+    const types = e.dataTransfer ? Array.from(e.dataTransfer.types || []) : [];
+    return types.includes("Files") || types.includes(LOCAL_DT_TYPE);
+  };
 
   window.addEventListener("dragenter", (e) => {
     if (!explorerActive()) return;
@@ -203,6 +210,15 @@ export function initDragDrop() {
     $("dropzone").classList.remove("dragging");
     const dt = e.dataTransfer;
     if (!dt) return;
+
+    // Uygulama içi yerel gezginden sürüklenen öğeler (yol listesi taşır).
+    const localData = dt.getData && dt.getData(LOCAL_DT_TYPE);
+    if (localData) {
+      let paths = [];
+      try { paths = JSON.parse(localData); } catch (_) {}
+      if (paths.length) import("./local-explorer.js").then((m) => m.uploadLocalPaths(paths));
+      return;
+    }
 
     const items = dt.items ? Array.from(dt.items) : [];
     // Masaüstünde sürüklenen klasörlerin diskteki yolunu hatırla. DataTransferItem
