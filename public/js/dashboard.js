@@ -161,7 +161,10 @@ export async function loadDashboard() {
 // Ana bölümde paneli göster (dosya görünümünü gizle)
 function setDashboardView(on) {
   if ($("dash-view")) $("dash-view").hidden = !on;
-  if ($("file-area")) $("file-area").hidden = on;
+  // Dosya alanı artık ".panes" sarmalayıcısının içinde (çift panel için). Yalnızca
+  // #file-area'yı gizlersek boş kalan .panes (flex:1) paneli sıkıştırıp kestirir;
+  // bu yüzden tüm sarmalayıcıyı gizle.
+  if ($("panes")) $("panes").hidden = on;
   if ($("statusbar")) $("statusbar").hidden = on;
 }
 

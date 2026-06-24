@@ -12,6 +12,22 @@ const dp = { connId: null, tok: null, cwd: "/", items: [] };
 
 function listConns() { return connections.filter((c) => c.session); }
 function connLabel(c) { return (c.info && (c.info.name || `${c.info.username}@${c.info.host}`)) || c.id; }
+function activeConn() { return connections.find((c) => c.id === activeConnId); }
+function activeLabel() { const c = activeConn(); return c ? connLabel(c) : "aktif sunucu"; }
+
+// İki panelin kim olduğunu ve ne yapılacağını açıkça yaz.
+function setHint() {
+  const el = $("dp-xfer-hint");
+  if (!el) return;
+  const right = dp.connId ? connLabel(connections.find((c) => c.id === dp.connId) || {}) : "—";
+  const same = dp.tok && activeConn() && activeConn().session === dp.tok;
+  el.innerHTML =
+    `<span class="dp-side"><b>◀ Sol</b> (senin gezginin): ${escapeHtml(activeLabel())}</span>` +
+    `<span class="dp-side"><b>Sağ ▶</b>: ${escapeHtml(right)}</span>` +
+    (same
+      ? `<span class="dp-warn">⚠ İki panel aynı sunucu — aktarım için farklı bir sunucu seç.</span>`
+      : `<span class="dp-tip">Aktarmak için dosyaları <b>kutucukla seç</b>, sonra <b>📥 Soldan al</b> / <b>📤 Sola gönder</b>.</span>`);
+}
 
 async function listDir(tok, path) {
   const res = await fetch("/api/list?path=" + encodeURIComponent(path), { headers: tok ? { "x-session": tok } : {} });
@@ -35,6 +51,7 @@ async function setConn(id) {
   const c = connections.find((x) => x.id === id);
   if (!c) return;
   dp.connId = id; dp.tok = c.session; dp.cwd = c.homePath || "/";
+  setHint();
   await loadDp();
 }
 
@@ -110,7 +127,8 @@ function transferLeftToRight() {
   if (!sel.length) return toast("Sol panelde aktarılacak öğe seç (kutucukla).", true);
   const c = connections.find((x) => x.id === activeConnId);
   if (c && c.session === dp.tok) return toast("İki panel aynı sunucu — farklı bir sunucu seç.", true);
-  enqueueTransfer(`Sol → Sağ (${sel.length})`, async () => {
+  const rightName = connLabel(connections.find((x) => x.id === dp.connId) || {});
+  enqueueTransfer(`Soldan al → ${rightName} (${sel.length})`, async () => {
     await runTransfer(session, dp.tok, dp.cwd, sel);
     loadDp();
   });
@@ -123,7 +141,7 @@ function transferRightToLeft() {
   if (!sel.length) return toast("Sağ panelde aktarılacak öğe seç (kutucukla).", true);
   const c = connections.find((x) => x.id === activeConnId);
   if (c && c.session === dp.tok) return toast("İki panel aynı sunucu — farklı bir sunucu seç.", true);
-  enqueueTransfer(`Sağ → Sol (${sel.length})`, async () => {
+  enqueueTransfer(`Sola gönder → ${activeLabel()} (${sel.length})`, async () => {
     await runTransfer(dp.tok, session, cwd, sel);
     navigate(cwd, false);
   });
@@ -137,8 +155,12 @@ function toggle() {
   pane.hidden = !isOpen;
   $("btn-split").classList.toggle("active", isOpen);
   if (!isOpen) return;
+  // Sol tarafta panel (dashboard) açıksa dosya gezginine geç — yoksa kullanıcı
+  // kendi dosyalarını göremez ve aktarım için seçim yapamaz.
+  import("./dashboard.js").then((m) => m.showFilesView()).catch(() => {});
   if (listConns().length < 2)
     toast("Çift panel için ikinci bir sunucuya bağlan (yeni sekmede). Tek sunucu arasında aktarım yapılamaz.", true);
+  setHint();
   populateSelect();
   const id = $("dp-conn").value;
   if (id) setConn(id); else loadDp();
