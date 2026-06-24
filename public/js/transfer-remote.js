@@ -47,7 +47,7 @@ export function showRemoteTransfer(sources) {
   };
 }
 
-async function runTransfer(sourceSession, target, dest, sources) {
+export async function runTransfer(sourceSession, target, dest, sources) {
   const res = await fetch("/api/transfer-remote", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(sourceSession ? { "x-session": sourceSession } : {}) },

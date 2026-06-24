@@ -13,6 +13,8 @@
 - 🐳 **Docker Compose:** "Docker → Compose" sekmesinde compose projelerini (stack) çalışan/toplam sayısıyla gör; **up / down / restart / stop / pull** ile yönet.
 
 **Bağlantı & güvenlik — yeni**
+- 🗂️ **Çoklu panel (split-pane):** Araç çubuğunda **Çift Panel** ile sağ tarafta ikinci bir bağlı sunucuyu yan yana aç; **Sol ➡ Sağ / Sol ⬅ Sağ** düğmeleriyle seçili dosyaları iki sunucu arasında doğrudan aktar (FileZilla tarzı).
+- 📜 **İşlem günlüğü (audit):** Sidebar → "İşlem Günlüğü" ile hangi sunucuya ne zaman bağlanıldı, hangi dosya silindi/taşındı/kopyalandı/yeniden adlandırıldı/arşivlendi/aktarıldı — zaman damgalı kayıt; temizlenebilir.
 - 🛠️ **Bağlantı düzenleme:** Kayıtlı bir sunucunun üzerine gelip ✎ ile **host/port/kullanıcı/ad/grup/protokol** bilgilerini silmeden güncelle (parola/anahtar korunur).
 - 🔑 **SSH anahtarı üret & kur:** "Sunucu Araçları → SSH" ile sunucuda ed25519 anahtar çifti üret, açık anahtarı `authorized_keys`'e ekle; özel anahtarı kopyalayıp bağlantına kaydederek parolasız bağlan.
 
@@ -58,8 +60,4 @@
 
 ## Yol haritası (sıradaki sürümlerde)
 
-**Bağlantı & sunucular**
-- 🗂️ **Çoklu sekme / iki panel (split-pane):** İki sunucuyu yan yana açıp aralarında sürükle-bırakla aktarım (FileZilla tarzı çift panel).
-
-**Güvenlik**
-- 📜 **Bağlantı geçmişi & işlem log'u:** Hangi sunucuya ne zaman bağlanıldı, hangi dosya silindi/taşındı (audit trail).
+Planlanan tüm maddeler tamamlandı. 🎉 Yeni fikir / istek için sorun bildir.

@@ -4,6 +4,7 @@ const fs = require("fs");
 const { getSession, hasExec, sessions } = require("../lib/sessions");
 const { PassThrough } = require("stream");
 const { resolveRemote, shQuote, runPool } = require("../lib/shell-utils");
+const { logFromSession } = require("../lib/audit");
 const {
   upload,
   UPLOAD_CONCURRENCY,
@@ -531,6 +532,7 @@ router.post("/api/rename", async (req, res) => {
     return res.status(400).json({ error: "Kaynak ve hedef gerekli." });
   try {
     await s.fs.rename(from, to);
+    logFromSession(s, "rename", `${path.posix.basename(from)} → ${path.posix.basename(to)}`);
     res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: "İşlem başarısız: " + err.message });
@@ -638,6 +640,7 @@ async function copyOrMove(req, res, move) {
   try {
     const r = await runCmd(s, cmd);
     if (r.code !== 0) return res.status(400).json({ error: r.err.trim() || (move ? "Taşıma başarısız." : "Kopyalama başarısız.") });
+    logFromSession(s, move ? "move" : "copy", `${sources.length} öğe → ${dest}`);
     res.json({ ok: true, count: sources.length });
   } catch (e) { res.status(400).json({ error: e.message }); }
 }
@@ -678,6 +681,7 @@ router.post("/api/archive", async (req, res) => {
         return res.status(400).json({ error: "Sunucuda 'zip' komutu yüklü değil. tar.gz biçimini seçin." });
       return res.status(400).json({ error: msg || "Arşivlenemedi." });
     }
+    logFromSession(s, "archive", `${sources.length} öğe → ${name}`);
     res.json({ ok: true, name });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -709,6 +713,7 @@ router.post("/api/extract", async (req, res) => {
         return res.status(400).json({ error: "Sunucuda 'unzip' komutu yüklü değil." });
       return res.status(400).json({ error: msg || "Çıkarılamadı." });
     }
+    logFromSession(s, "extract", `${path.posix.basename(archive)} → ${dir}`);
     res.json({ ok: true, dir });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
@@ -733,6 +738,7 @@ router.post("/api/rename-batch", async (req, res) => {
     try { await s.fs.rename(p.from, p.to); done++; }
     catch (e) { errors.push(path.posix.basename(p.from) + ": " + e.message); }
   }
+  if (done) logFromSession(s, "rename-batch", `${done} öğe yeniden adlandırıldı`);
   res.json({
     ok: errors.length === 0,
     done,
@@ -809,6 +815,7 @@ router.post("/api/transfer-remote", express.json(), async (req, res) => {
     if (errors.length) {
       send({ error: `${errors.length} dosya aktarılamadı (ör. ${path.posix.basename(errors[0].item.src)}: ${errors[0].error.message})`, count: files.length - errors.length, failed: errors.length });
     } else {
+      logFromSession(src, "transfer", `${files.length} dosya → ${(target.info && target.info.host) || "diğer sunucu"}:${destDir}`);
       send({ ok: true, count: files.length });
     }
     res.end();
@@ -867,6 +874,7 @@ router.post("/api/delete-stream", async (req, res) => {
     // Tek dosya ya da akış desteklemeyen (FTP) bağlantı → tek adımda sil
     if (type !== "dir" || typeof s.fs.removeTree !== "function") {
       await (type === "dir" ? s.fs.removeDir(target) : s.fs.removeFile(target));
+      logFromSession(s, "delete", path.posix.basename(target) + (type === "dir" ? "/" : ""));
       send({ ok: true });
       return res.end();
     }
@@ -880,6 +888,7 @@ router.post("/api/delete-stream", async (req, res) => {
         if (done - lastSent >= step) { lastSent = done; send({ done }); }
       },
     });
+    logFromSession(s, "delete", path.posix.basename(target) + "/ (" + total + " öğe)");
     send({ done: total, ok: true, total });
     res.end();
   } catch (err) {
@@ -897,6 +906,7 @@ router.post("/api/delete", async (req, res) => {
   try {
     if (type === "dir") await s.fs.removeDir(target);
     else await s.fs.removeFile(target);
+    logFromSession(s, "delete", path.posix.basename(target) + (type === "dir" ? "/" : ""));
     res.json({ ok: true });
   } catch (err) {
     res.status(400).json({

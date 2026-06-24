@@ -177,6 +177,7 @@
         <a id="btn-terminal"><span class="q-ico" data-icon="terminal"></span> Sunucu Terminali</a>
         <a id="btn-docker"><span class="q-ico" data-icon="container"></span> Docker Yönetimi</a>
         <a id="btn-systools"><span class="q-ico" data-icon="activity"></span> Sunucu Araçları</a>
+        <a id="btn-audit"><span class="q-ico">📜</span> İşlem Günlüğü</a>
         <a id="btn-whatsnew"><span class="q-ico" data-icon="gauge"></span> Sürüm Notları</a>
         <a id="btn-theme"><span class="q-ico theme-ico">🌙</span> <span class="theme-label">Karanlık Tema</span></a>
         <a id="btn-update" hidden><span class="q-ico" data-icon="refresh"></span> Güncellemeleri Denetle<span class="upd-dot" hidden></span></a>
@@ -205,6 +206,7 @@
       <input type="search" id="file-search" class="form-control form-control-sm file-search" placeholder="Bu klasörde ara…" autocomplete="off" />
       <button id="btn-hidden" class="btn btn-sm tbtn" title="Gizli dosyaları (.ile başlayan) göster/gizle"><span class="nav-ico-wrap" data-icon="eye"></span> <span class="btn-label">Gizli</span></button>
       <button id="btn-view" class="btn btn-sm tbtn" title="Görünümü değiştir (simge / liste)"><span class="nav-ico-wrap" data-icon="grid"></span> <span class="btn-label">Görünüm</span></button>
+      <button id="btn-split" class="btn btn-sm tbtn" title="Çift panel: ikinci sunucuyu yan yana aç, aralarında aktar"><span class="split-ico">▥</span> <span class="btn-label">Çift Panel</span></button>
       <button id="btn-newfolder" class="btn btn-sm tbtn" title="Yeni klasör oluştur"><span class="nav-ico-wrap" data-icon="folder-plus"></span> <span class="btn-label">Yeni Klasör</span></button>
       <button id="btn-download" class="btn btn-sm tbtn" title="Seçili dosya/klasörü bilgisayarına indir"><span class="nav-ico-wrap" data-icon="download"></span> <span class="btn-label">İndir</span></button>
       <button id="btn-upload" class="btn btn-sm tbtn primary" title="Dosya yükle"><span class="nav-ico-wrap" data-icon="upload"></span> <span class="btn-label">Yükle</span></button>
@@ -226,6 +228,7 @@
       <div class="dash-body" id="dash-body"></div>
     </div>
 
+    <div class="panes" id="panes">
     <div class="file-area" id="file-area">
       <table class="file-table">
         <thead>
@@ -293,6 +296,23 @@
       </div>
     </div>
 
+    <!-- İkinci panel (çift panel / split-pane) -->
+    <aside class="dual-pane" id="dual-pane" hidden>
+      <div class="dp-head">
+        <select id="dp-conn" class="dp-conn" title="Sağ panelde gösterilecek sunucu"></select>
+        <button type="button" id="dp-up" class="btn btn-sm tbtn" title="Üst klasör"><span class="nav-ico-wrap" data-icon="arrow-up"></span></button>
+        <button type="button" id="dp-refresh" class="btn btn-sm tbtn" title="Yenile"><span class="nav-ico-wrap" data-icon="refresh"></span></button>
+        <button type="button" id="dp-close" class="btn btn-sm tbtn" title="Çift paneli kapat"><span class="nav-ico-wrap" data-icon="x"></span></button>
+      </div>
+      <div class="dp-bread" id="dp-bread"></div>
+      <div class="dp-transfer">
+        <button type="button" id="dp-to-right" class="btn btn-sm tbtn primary" title="Sol paneldeki seçili öğeleri bu (sağ) panele aktar">Sol ➡ Sağ</button>
+        <button type="button" id="dp-to-left" class="btn btn-sm tbtn primary" title="Bu (sağ) paneldeki seçili öğeleri sol panele aktar">Sol ⬅ Sağ</button>
+      </div>
+      <div class="dp-list" id="dp-list"></div>
+    </aside>
+    </div>
+
     <div class="statusbar" id="statusbar"></div>
     </div>
   </div>
@@ -352,6 +372,21 @@
         <button id="systools-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
       </div>
       <div class="docker-body" id="systools-body"></div>
+    </div>
+  </div>
+
+  <!-- İşlem / bağlantı günlüğü (audit) -->
+  <div id="audit-panel" class="editor-overlay" hidden>
+    <div class="docker-box">
+      <div class="editor-head">
+        <span class="editor-title"><span class="q-ico">📜</span> İşlem Günlüğü</span>
+        <span class="editor-status" id="audit-status"></span>
+        <div class="spacer"></div>
+        <button id="audit-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> Yenile</button>
+        <button id="audit-clear" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Temizle</button>
+        <button id="audit-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
+      </div>
+      <div class="docker-body" id="audit-body"></div>
     </div>
   </div>
 

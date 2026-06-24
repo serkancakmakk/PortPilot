@@ -1,6 +1,7 @@
 const express = require("express");
 const { getSession, hasExec } = require("../lib/sessions");
 const { shQuote } = require("../lib/shell-utils");
+const { logFromSession } = require("../lib/audit");
 
 const router = express.Router();
 
@@ -268,6 +269,7 @@ router.post("/api/sys/chown", async (req, res) => {
   try {
     const r = await runCmd(s, `chown ${rec}-- ${shQuote(spec)} ${shQuote(target)} 2>&1`);
     if (r.code !== 0) return res.status(400).json({ error: (r.out + r.err).trim() || "Sahiplik değiştirilemedi (root gerekebilir)." });
+    logFromSession(s, "chown", `${spec} ${target}${req.body.recursive ? " -R" : ""}`);
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });

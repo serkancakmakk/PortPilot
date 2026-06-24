@@ -32,6 +32,7 @@ app.use(require("./routes/prefs"));
 app.use(require("./routes/lock"));
 app.use(require("./routes/downloads"));
 app.use(require("./routes/sys"));
+app.use(require("./routes/audit"));
 
 // ---- WebSocket terminali ----
 // Doğrudan `node server.js` ile çalıştırıldığında dinle.

@@ -2,6 +2,7 @@ const express = require("express");
 const crypto = require("crypto");
 const { connectRemote } = require("../lib/remote-fs");
 const { sessions } = require("../lib/sessions");
+const { logAudit } = require("../lib/audit");
 
 const router = express.Router();
 
@@ -44,6 +45,7 @@ router.post("/api/connect", async (req, res) => {
       info: { host, port: portNum, username, protocol },
       lastUsed: Date.now(),
     });
+    logAudit({ action: "connect", host, user: username, detail: `${protocol}://${host}:${portNum}` });
     res.json({
       session: token,
       home: home || "/",
@@ -61,6 +63,7 @@ router.post("/api/disconnect", (req, res) => {
     try {
       s.fs.end();
     } catch (_) {}
+    if (s.info) logAudit({ action: "disconnect", host: s.info.host, user: s.info.username });
     sessions.delete(token);
   }
   res.json({ ok: true });

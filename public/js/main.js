@@ -21,6 +21,8 @@ import { initWhatsNew } from "./whatsnew.js";
 import { initTransferQueue } from "./transfer-queue.js";
 import { initLock } from "./lock.js";
 import { initTheme } from "./theme.js";
+import { initAudit } from "./audit.js";
+import { initDualPane } from "./dual-pane.js";
 import { hideMenu, showAreaMenu, renameItem, deleteItem } from "./context-menu.js";
 import { navigate, joinPath } from "./explorer.js";
 import { cwd, activeConnId, selectedItem } from "./state.js";
@@ -83,6 +85,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initLocalExplorer();
   initLocalLast();
   initSystools();
+  initAudit();
+  initDualPane();
   initWhatsNew();
   initTransferQueue();
 
