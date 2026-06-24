@@ -12,10 +12,25 @@ const { autoUpdater } = require("electron-updater");
 // Linux'ta paketlenmiş uygulamada chrome-sandbox çoğu kez SUID/izin sorunundan
 // uygulamanın hiç açılmamasına yol açar; bu platformda sandbox'ı kapat.
 if (process.platform === "linux") {
+  // CachyOS/Arch gibi sistemlerde JS'den eklenen --no-sandbox switch'i sandbox
+  // kararı için ÇOK GEÇ uygulanır; bayrak gerçek komut satırında olmalı.
+  // Yoksa onu ekleyip uygulamayı bir kez yeniden başlat → kullanıcının elle
+  // "--no-sandbox" yazmasına gerek kalmaz (hem dev hem paketli build için).
+  const argv = process.argv.slice(1);
+  if (!argv.includes("--no-sandbox")) {
+    app.relaunch({ args: argv.concat("--no-sandbox") });
+    app.exit(0);
+  }
   app.commandLine.appendSwitch("no-sandbox");
+  app.commandLine.appendSwitch("disable-setuid-sandbox");
   // /dev/shm erişilemiyor/izinsizse renderer çöker (beyaz ekran) → /tmp kullan.
   app.commandLine.appendSwitch("disable-dev-shm-usage");
-  // Linux'ta GPU/derleyici çakışması sık sık beyaz ekrana yol açar → yazılım render.
+  // Wayland (CachyOS/Arch/GNOME/KDE) oturumlarında Electron yanlış backend seçip
+  // beyaz ekranda kalabilir → doğru ozone platformunu (wayland/x11) otomatik seç.
+  app.commandLine.appendSwitch("ozone-platform-hint", "auto");
+  // Wayland'da pencere dekorasyonu/çizim sorunlarını azaltır.
+  app.commandLine.appendSwitch("enable-features", "WaylandWindowDecorations");
+  // GPU/derleyici çakışması sık sık beyaz ekrana yol açar → yazılım render.
   app.disableHardwareAcceleration();
 }
 
@@ -228,6 +243,20 @@ async function createWindow() {
   mainWindow.webContents.on("render-process-gone", (_e, details) => {
     logCrash("render-process-gone", JSON.stringify(details));
   });
+
+  // Beyaz ekran teşhisi: renderer konsolundaki hata/uyarıları ve yükleme
+  // olaylarını da günlüğe yaz (çökme olmasa bile JS/modül hatasını yakalar).
+  mainWindow.webContents.on("console-message", (_e, level, message, line, sourceId) => {
+    if (level >= 2) logCrash("renderer-console", `${message}  (${sourceId}:${line})`);
+  });
+  mainWindow.webContents.on("preload-error", (_e, preloadPath, err) => {
+    logCrash("preload-error", `${preloadPath}: ${(err && err.stack) || err}`);
+  });
+  mainWindow.webContents.on("did-finish-load", () => logCrash("did-finish-load", "ok"));
+  // PORTPILOT_DEBUG=1 ile başlatınca DevTools otomatik açılır (konsolu canlı gör).
+  if (process.env.PORTPILOT_DEBUG === "1") {
+    mainWindow.webContents.openDevTools({ mode: "detach" });
+  }
 
   // Sağ tık menüsü: kes/kopyala/yapıştır/tümünü seç (her platformda çalışır)
   mainWindow.webContents.on("context-menu", (_e, params) => {
