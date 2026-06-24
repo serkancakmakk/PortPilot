@@ -124,6 +124,36 @@ router.post("/api/sys/service", async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+// ---- Disk kullanım analizi (klasör bazında boyut) ----
+// Verilen yolun doğrudan alt klasör/dosyalarının boyutunu `du` ile döker; en büyükten
+// sırala. "hangi klasör diski doldurmuş" sorusunu yanıtlar.
+router.get("/api/sys/diskusage", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return notSupported(res);
+  const dir = String(req.query.path || "/").trim() || "/";
+  try {
+    // -b: bayt, --max-depth=1: yalnızca doğrudan çocuklar. Erişilemeyenleri (stderr) yut.
+    const r = await runCmd(s, `du -b --max-depth=1 -- ${shQuote(dir)} 2>/dev/null | sort -nr`);
+    const lines = r.out.split("\n").map((l) => l.trim()).filter(Boolean);
+    let total = 0;
+    const items = [];
+    const base = dir.replace(/\/+$/, "") || "/";
+    for (const line of lines) {
+      const m = line.match(/^(\d+)\s+(.*)$/);
+      if (!m) continue;
+      const bytes = Number(m[1]);
+      const p = m[2];
+      // İlk satır genelde dizinin kendisi (toplam) → ayır
+      if (p === base || p === dir || p === base + "/") { total = bytes; continue; }
+      const name = p.split("/").filter(Boolean).pop() || p;
+      items.push({ name, path: p, size: bytes });
+    }
+    if (!total) total = items.reduce((a, b) => a + b.size, 0);
+    res.json({ available: true, path: base, total, items });
+  } catch (e) { res.json({ available: false, error: e.message }); }
+});
+
 // ---- Log kuyruğu (dosya tail) ----
 router.get("/api/sys/logtail", async (req, res) => {
   const s = getSession(req, res);

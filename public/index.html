@@ -11,6 +11,21 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Uygulama kilidi ekranı (kilit etkinse açılışta her şeyin üstünde) -->
+  <div id="lock-screen" class="lock-screen" hidden>
+    <div class="lock-card">
+      <img src="logo.png" alt="PortPilot" class="lock-logo" />
+      <h1 class="lock-title">PortPilot kilitli</h1>
+      <p class="lock-sub">Devam etmek için parolanı gir</p>
+      <input type="password" id="lock-input" class="lock-input" placeholder="Parola" autocomplete="off" />
+      <button type="button" id="lock-unlock" class="btn btn-connect w-100">Kilidi Aç</button>
+      <button type="button" id="lock-bio" class="lock-bio" hidden>
+        <span class="nav-ico-wrap" data-icon="lock"></span> Touch ID ile aç
+      </button>
+      <div id="lock-error" class="login-error"></div>
+    </div>
+  </div>
+
   <!-- Bağlantı ekranı -->
   <div id="login" class="login-overlay">
 
@@ -124,6 +139,9 @@
         <button type="button" id="open-downloads" class="login-link">
           <span class="nav-ico-wrap" data-icon="monitor"></span> Masaüstü uygulamasını indir (Mac · Windows · Linux)
         </button>
+        <button type="button" id="open-applock" class="login-link">
+          <span class="nav-ico-wrap" data-icon="lock"></span> <span id="applock-link-label">Uygulama kilidi kur</span>
+        </button>
       </div>
     </form>
   </div>
@@ -212,10 +230,10 @@
         <thead>
           <tr>
             <th class="c-check"><input type="checkbox" id="check-all" title="Tümünü seç" /></th>
-            <th class="c-name">Ad</th>
-            <th class="c-date">Değiştirilme</th>
-            <th class="c-type">Tür</th>
-            <th class="c-size">Boyut</th>
+            <th class="c-name sortable" data-sort="name">Ad <span class="sort-ind"></span></th>
+            <th class="c-date sortable" data-sort="mtime">Değiştirilme <span class="sort-ind"></span></th>
+            <th class="c-type sortable" data-sort="type">Tür <span class="sort-ind"></span></th>
+            <th class="c-size sortable" data-sort="size">Boyut <span class="sort-ind"></span></th>
           </tr>
         </thead>
         <tbody id="file-list"></tbody>
@@ -320,6 +338,7 @@
           <button class="dk-tab active" data-systab="ports">Açık Portlar</button>
           <button class="dk-tab" data-systab="procs">Süreçler</button>
           <button class="dk-tab" data-systab="services">Servisler</button>
+          <button class="dk-tab" data-systab="diskusage">Disk Analizi</button>
           <button class="dk-tab" data-systab="log">Log</button>
         </div>
         <span class="editor-status" id="systools-status"></span>

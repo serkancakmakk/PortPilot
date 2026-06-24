@@ -38,6 +38,7 @@ export function showContextMenu(e, item) {
   actions.push({ label: "🔒 İzinler…", fn: () => chmodItem(item, full) });
   actions.push({ label: "✏ Yeniden adlandır", fn: () => renameItem(item, full) });
   actions.push({ sep: true });
+  actions.push({ label: "ℹ Özellikler", fn: () => import("./properties.js").then((m) => m.showProperties(item, full)) });
   actions.push({ label: "🗑 Sil", danger: true, fn: () => deleteItem(item, full) });
   renderMenu(e, actions);
 }

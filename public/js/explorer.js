@@ -2,10 +2,11 @@ import { $, showLoading, toast, escapeHtml, escapeAttr } from "./dom.js";
 import { icon, iconFor } from "./icons.js";
 import { api } from "./api.js";
 import {
+  session,
   cwd, history, allItems, currentItems, fileFilter, showHidden,
-  selectedItem, viewMode, diskInfo,
+  selectedItem, viewMode, diskInfo, sortKey, sortDir,
   setCwd, setHistory, setAllItems, setCurrentItems, setFileFilter,
-  setShowHidden, setSelectedItem, setDiskInfo, setViewMode, pushTransfer,
+  setShowHidden, setSelectedItem, setDiskInfo, setViewMode, setSort, pushTransfer,
 } from "./state.js";
 
 // ---- Format yardımcıları ----
@@ -97,12 +98,49 @@ export async function fetchDisk(target) {
   renderSideDisk();
 }
 
+// ---- Sıralama ----
+function sortItems(items) {
+  const dir = sortDir === "desc" ? -1 : 1;
+  const rank = (i) => (i.type === "dir" ? 0 : i.type === "link" ? 1 : 2);
+  const coll = new Intl.Collator("tr", { numeric: true, sensitivity: "base" });
+  return [...items].sort((a, b) => {
+    // Klasörler her zaman üstte (yöne bakmaksızın)
+    if (rank(a) !== rank(b)) return rank(a) - rank(b);
+    let c = 0;
+    if (sortKey === "size") c = (a.size || 0) - (b.size || 0);
+    else if (sortKey === "mtime") c = (a.mtime || 0) - (b.mtime || 0);
+    else if (sortKey === "type") c = coll.compare(typeLabel(a), typeLabel(b));
+    else c = coll.compare(a.name, b.name);
+    if (c === 0 && sortKey !== "name") c = coll.compare(a.name, b.name);
+    return c * dir;
+  });
+}
+
+// Başlık tıklamasıyla sırala: aynı sütun yönü çevirir, farklı sütun asc başlar
+export function sortBy(key) {
+  if (sortKey === key) setSort(key, sortDir === "asc" ? "desc" : "asc");
+  else setSort(key, "asc");
+  applyFileView();
+}
+
+function updateSortHeaders() {
+  document.querySelectorAll(".file-table thead th[data-sort]").forEach((th) => {
+    const active = th.dataset.sort === sortKey;
+    th.classList.toggle("sorted", active);
+    th.setAttribute("aria-sort", active ? (sortDir === "asc" ? "ascending" : "descending") : "none");
+    const ind = th.querySelector(".sort-ind");
+    if (ind) ind.textContent = active ? (sortDir === "asc" ? "▲" : "▼") : "";
+  });
+}
+
 // ---- Dosya listesi ----
 export function applyFileView() {
   let items = allItems;
   if (!showHidden) items = items.filter((i) => !i.name.startsWith("."));
   const q = fileFilter.trim().toLowerCase();
   if (q) items = items.filter((i) => i.name.toLowerCase().includes(q));
+  items = sortItems(items);
+  updateSortHeaders();
   renderList(items);
 }
 

@@ -3,6 +3,10 @@
 ## Yeni
 
 **Dosya yönetimi**
+- 💾 **İndirirken "Nereye kaydedeyim?":** Masaüstü uygulamasında dosya/klasör indirirken sistem **Kaydet** penceresi açılır; istediğin klasörü seçersin ve son seçtiğin konum sonraki indirme için hatırlanır.
+- 🐛 **İndirme düzeltmesi:** Bazı durumlarda indirmenin hiç başlamamasına yol açan hata (`session is not defined`) giderildi.
+- ↕️ **Sütun bazlı sıralama:** Liste görünümünde **Ad / Değiştirilme / Tür / Boyut** başlığına tıklayarak sırala; tekrar tıklayınca yön (▲/▼) değişir. Klasörler her zaman üstte kalır, tercih hatırlanır.
+- ℹ️ **Özellikler paneli:** Sağ tık → "Özellikler" ile tür, konum, boyut, **sahip/grup**, izinler (sekizlik + simgesel), değiştirilme tarihi; klasörlerde **özyinelemeli toplam boyut ve öğe sayısı** (`du`/`find`).
 - 🔀 **Sunucudan sunucuya aktarım:** Bir öğeye sağ tık → "Başka sunucuya aktar…" ile aktif sunucudaki dosya/klasörü başka bir bağlı sunucuya gönder (hedef + klasör seçilir; transfer kuyruğunda ilerler).
 - 👁 **Dosya önizleme:** Resim ve PDF dosyalarını indirmeden pencere içinde görüntüle (sağ tık → "Önizle").
 - ⌨️ **Klavye kısayolları:** F2 yeniden adlandır · Delete sil · F5 yenile · Backspace üst klasör.
@@ -17,12 +21,14 @@
 - 🕘 **Son kullanılan yerel klasörler** ve **bu sunucu için son yerel konum** (sunucu bazlı, kalıcı). "Tekrar Yükle" ile bir klasörün güncel halini yeniden gönder.
 
 **Sunucu araçları** (yeni "Sunucu Araçları" paneli)
+- 💽 **Disk kullanım analizi:** Yeni "Disk Analizi" sekmesi — bir klasörün doğrudan alt klasör/dosyalarının boyutunu `du` ile döker, en büyükten sıralar; **oran çubuğu**, **% pay** ve **toplam** gösterir. Bir klasöre tıklayarak içine inip "hangi klasör diski doldurmuş" sorusunu adım adım çöz.
 - 🔌 **Açık portlar:** dinleyen TCP/UDP portları ve hangi süreç kullanıyor (`ss`/`netstat`).
 - 📊 **Süreçler:** en çok CPU kullanan süreçler (PID/kullanıcı/CPU/RAM) + tek tıkla **sonlandır**.
 - ⚙️ **systemd servisleri:** durumlarıyla listele; **başlat / yeniden başlat / durdur**.
 - 📜 **Log:** herhangi bir dosyanın son N satırını görüntüle (tail).
 
 **Güvenlik**
+- 🔒 **Uygulama kilidi:** Açılışta master parola iste. Parola cihazda **scrypt + rastgele tuz** ile hash'lenir (düz metin saklanmaz). **Otomatik kilit** (boşta kalınca 1 dk–1 saat), **macOS'ta Touch ID** ile açma ve giriş ekranından **kur / parola değiştir / kaldır** yönetimi.
 - 🔐 **Kayıtlı sunucu parolaları artık şifreli saklanıyor.** Parola, özel anahtar ve passphrase, işletim sisteminin anahtarlığından türetilen anahtarla şifrelenir (Electron `safeStorage`); `servers.json` artık düz metin parola tutmaz. Mevcut kayıtlar ilk açılışta otomatik şifreliye taşınır. (Anahtarlık olmayan ortamlarda eski davranış sürer.)
 
 **Diğer**
@@ -34,4 +40,25 @@
 - 🔢 Sürüm rozeti gerçek sürümü gösteriyor.
 
 ## Yol haritası (sıradaki sürümlerde)
-- Dosyayı listeden bilgisayara sürükleyip indirme
+
+**Dosya gezgini**
+- ↧ **Sürükleyip indirme:** Dosyayı listeden bilgisayara sürükleyip bırakarak indir.
+- 🗜️ **Arşivle / çıkar:** Sağ tık → sunucu üzerinde `tar`/`zip` ile arşivle veya `.zip`/`.tar.gz` dosyasını "buraya çıkar".
+- 🔖 **Yer imleri:** Sık kullanılan uzak klasörleri kaydedip sidebar'dan tek tıkla aç.
+- ✏️ **Toplu yeniden adlandırma:** Birden çok dosyayı regex / sıralı isimlendirme ile topluca yeniden adlandır.
+
+**Bağlantı & sunucular**
+- 🛠️ **Bağlantı düzenleme:** Kayıtlı sunucuyu silmeden host/port/kullanıcı güncelleme; klasör/etiket ile gruplama.
+- 🗂️ **Çoklu sekme / iki panel (split-pane):** İki sunucuyu yan yana açıp aralarında sürükle-bırakla aktarım (FileZilla tarzı çift panel).
+
+**Sunucu araçları**
+- ⏰ **Cron yönetimi:** `crontab` üzerinden zamanlanmış görevleri listele / düzenle.
+- 👥 **Kullanıcı & grup yönetimi:** Kullanıcıları listele/ekle, `chown` ile sahip değiştir.
+- 🐳 **Docker Compose:** Stack bazlı görünüm; `docker compose up/down/ps`.
+
+**Güvenlik**
+- 🔑 **SSH anahtarı üret & kur:** `ssh-keygen` + `authorized_keys`'e ekleyerek parolasız bağlantıya geç.
+- 📜 **Bağlantı geçmişi & işlem log'u:** Hangi sunucuya ne zaman bağlanıldı, hangi dosya silindi/taşındı (audit trail).
+
+**Deneyim**
+- 🌗 **Karanlık / aydınlık tema** seçimi.

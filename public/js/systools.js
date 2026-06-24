@@ -1,10 +1,12 @@
-// Sunucu Araçları: açık portlar, süreçler, systemd servisleri, log kuyruğu.
+// Sunucu Araçları: açık portlar, süreçler, systemd servisleri, disk analizi, log kuyruğu.
 import { $, escapeHtml, escapeAttr, toast, showLoading } from "./dom.js";
 import { api } from "./api.js";
 import { confirmDialog } from "./dialog.js";
+import { fmtSize } from "./explorer.js";
 
 let sysTab = "ports";
 let logPath = "/var/log/syslog";
+let duPath = "/";
 
 function setTab(tab) {
   sysTab = tab;
@@ -19,6 +21,7 @@ async function loadTab() {
   const body = $("systools-body");
   $("systools-status").textContent = "";
   if (sysTab === "log") return renderLog();
+  if (sysTab === "diskusage") return loadDiskUsage();
   msg("Yükleniyor…");
   let data;
   try {
@@ -104,8 +107,73 @@ async function fetchLog() {
   } catch (e) { $("sys-log-out").textContent = "Hata: " + e.message; }
 }
 
-// Eylemler (kill / servis)
+// ---- Disk analizi ----
+function renderDiskBar(path) {
+  return `<div class="sys-logbar">
+    <input id="sys-du-path" class="lx-path" placeholder="Klasör yolu (ör. /var)" value="${escapeAttr(path)}" spellcheck="false" />
+    <button id="sys-du-get" class="btn btn-sm tbtn primary">Analiz Et</button>
+  </div>`;
+}
+
+async function loadDiskUsage() {
+  $("systools-body").innerHTML = renderDiskBar(duPath) +
+    `<div class="dk-msg" id="sys-du-out">Bir klasör yolu girip “Analiz Et”e bas (ör. <code>/var</code>, <code>/home</code>).</div>`;
+  wireDiskBar();
+}
+
+function wireDiskBar() {
+  const get = $("sys-du-get");
+  const input = $("sys-du-path");
+  if (get) get.addEventListener("click", fetchDiskUsage);
+  if (input) input.addEventListener("keydown", (e) => { if (e.key === "Enter") fetchDiskUsage(); });
+}
+
+async function fetchDiskUsage() {
+  duPath = $("sys-du-path").value.trim() || "/";
+  $("systools-status").textContent = "";
+  $("systools-body").innerHTML = renderDiskBar(duPath) + `<div class="dk-msg" id="sys-du-out">Hesaplanıyor… (büyük klasörlerde sürebilir)</div>`;
+  wireDiskBar();
+  let data;
+  try {
+    data = await api("sys/diskusage?path=" + encodeURIComponent(duPath));
+  } catch (e) { $("sys-du-out").innerHTML = "Hata: " + escapeHtml(e.message); return; }
+  if (!data || !data.available) {
+    $("sys-du-out").innerHTML = "Bu sunucuda kullanılamıyor (komut çalıştırma kapalı ya da FTP).";
+    return;
+  }
+  renderDiskUsage(data);
+  $("systools-status").textContent = "Güncellendi · " + new Date().toLocaleTimeString("tr-TR");
+}
+
+function renderDiskUsage(data) {
+  const max = data.items.reduce((m, i) => Math.max(m, i.size), 0) || 1;
+  const rows = data.items.length ? data.items.map((i) => {
+    const pct = Math.round((i.size / max) * 100);
+    const share = data.total ? ((i.size / data.total) * 100).toFixed(1) : "0";
+    return `<tr>
+      <td class="sys-du-name"><button class="dk-link" data-act="du-into" data-path="${escapeAttr(i.path)}">${escapeHtml(i.name)}</button></td>
+      <td class="sys-du-bar"><div class="du-track"><div class="du-fill" style="width:${pct}%"></div></div></td>
+      <td class="sys-du-size"><b>${escapeHtml(fmtSize(i.size))}</b></td>
+      <td class="sys-du-share">%${share}</td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="4" class="dk-sub">Alt öğe yok ya da erişilemedi.</td></tr>`;
+  $("systools-body").innerHTML = renderDiskBar(duPath) + `
+    <div class="sys-du-total">Toplam: <b>${escapeHtml(fmtSize(data.total))}</b> · <span class="dk-sub">${escapeHtml(data.path)}</span></div>
+    <table class="table sys-table sys-du-table">
+      <thead><tr><th>Klasör / Dosya</th><th>Oran</th><th>Boyut</th><th>Pay</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  wireDiskBar();
+}
+
+// Eylemler (kill / servis / disk analizine in)
 async function onBodyClick(e) {
+  const into = e.target.closest("button[data-act='du-into']");
+  if (into) {
+    duPath = into.dataset.path;
+    $("sys-du-path") && ($("sys-du-path").value = duPath);
+    return fetchDiskUsage();
+  }
   const btn = e.target.closest("button[data-act]");
   if (!btn) return;
   if (btn.dataset.act === "kill") {

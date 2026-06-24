@@ -19,6 +19,10 @@ export let showHidden = localStorage.getItem("showHidden") !== "0";
 export let selectedItem = null;
 export let viewMode = localStorage.getItem("viewMode") || "grid";
 
+// Sıralama: anahtar (name|mtime|type|size) ve yön (asc|desc)
+export let sortKey = localStorage.getItem("sortKey") || "name";
+export let sortDir = localStorage.getItem("sortDir") || "asc";
+
 // Yükleme tercihleri (oturum boyunca hatırla)
 export let uploadPrefs = null;
 
@@ -85,5 +89,9 @@ export function setFileFilter(v)    { fileFilter = v; }
 export function setShowHidden(v)    { showHidden = v; }
 export function setSelectedItem(v)  { selectedItem = v; }
 export function setViewMode(v)      { viewMode = v; }
+export function setSort(key, dir)   {
+  sortKey = key; sortDir = dir;
+  try { localStorage.setItem("sortKey", key); localStorage.setItem("sortDir", dir); } catch (_) {}
+}
 export function setUploadPrefs(v)   { uploadPrefs = v; }
 export function setDiskInfo(v)      { diskInfo = v; }

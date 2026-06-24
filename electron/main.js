@@ -4,7 +4,7 @@
 // Express sunucusunu yerel bir portta başlatır ve bir pencere içinde açar.
 // macOS · Windows · Linux için electron-builder ile paketlenir.
 
-const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage } = require("electron");
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage, systemPreferences } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { autoUpdater } = require("electron-updater");
@@ -67,6 +67,8 @@ const { startServer } = require("../server.js");
 
 let mainWindow = null;
 let httpServer = null;
+// İndirmelerde kullanıcının en son seçtiği kaydetme klasörü (oturum boyu hatırlanır)
+let lastSaveDir = null;
 
 // GitHub deposu (güncelleme denetimi için)
 const REPO = "serkancakmakk/PortPilot";
@@ -209,6 +211,21 @@ ipcMain.handle("fs:open-path", async (_e, p) => {
   return await shell.openPath(p); // başarılıysa "" döner
 });
 
+// Biyometrik (macOS Touch ID) — uygulama kilidi için.
+// Yalnızca macOS'ta ve donanım/Touch ID kurulu ise kullanılabilir.
+ipcMain.handle("lock:biometric-available", () => {
+  try {
+    return process.platform === "darwin" && systemPreferences.canPromptTouchID();
+  } catch (_) { return false; }
+});
+ipcMain.handle("lock:biometric-prompt", async (_e, reason) => {
+  try {
+    if (process.platform !== "darwin") return false;
+    await systemPreferences.promptTouchID(typeof reason === "string" && reason ? reason : "kilidi aç");
+    return true;
+  } catch (_) { return false; }
+});
+
 // Uygulama içi yerel gezgin için: başlangıç (ev) klasörü.
 ipcMain.handle("fs:home", () => app.getPath("home"));
 
@@ -304,6 +321,24 @@ async function createWindow() {
     if (url.startsWith("http://127.0.0.1") || url.startsWith("http://localhost")) return { action: "allow" };
     shell.openExternal(url);
     return { action: "deny" };
+  });
+
+  // İndirme başlayınca kullanıcıya "Nereye kaydedeyim?" diye sor (Kaydet penceresi).
+  // setSavePath çağrılmadığı + setSaveDialogOptions verildiği için Electron sistem
+  // kaydetme penceresini gösterir; varsayılan konum İndirilenler + gerçek dosya adı.
+  mainWindow.webContents.session.on("will-download", (_e, item) => {
+    let defaultDir = app.getPath("downloads");
+    try { defaultDir = lastSaveDir || app.getPath("downloads"); } catch (_) {}
+    item.setSaveDialogOptions({
+      title: "Farklı Kaydet",
+      defaultPath: path.join(defaultDir, item.getFilename()),
+    });
+    // Kullanıcı seçtiği klasörü hatırla → sonraki indirmede başlangıç noktası
+    item.once("done", (_ev, state) => {
+      if (state === "completed") {
+        try { lastSaveDir = path.dirname(item.getSavePath()); } catch (_) {}
+      }
+    });
   });
 
   // localhost bazı Linux kurulumlarında ::1'e (IPv6) çözümlenip sunucuya (IPv4)

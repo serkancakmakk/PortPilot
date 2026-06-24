@@ -29,6 +29,7 @@ app.use(require("./routes/files"));
 app.use(require("./routes/docker"));
 app.use(require("./routes/servers"));
 app.use(require("./routes/prefs"));
+app.use(require("./routes/lock"));
 app.use(require("./routes/downloads"));
 app.use(require("./routes/sys"));
 

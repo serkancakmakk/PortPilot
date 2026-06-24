@@ -568,6 +568,58 @@ router.post("/api/chmod", async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+// ---- Dosya/klasör özellikleri ----
+// SFTP'de `stat` ile sahip/grup/izinler; klasörlerde `du`+`find` ile özyinelemeli
+// boyut ve öğe sayısı. FTP'de (kabuk yok) yalnızca temel bilgi (boyut/tarih).
+router.get("/api/properties", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!req.query.path) return res.status(400).json({ error: "Yol gerekli." });
+  const target = resolveRemote("/", req.query.path);
+  const name = target.split("/").filter(Boolean).pop() || "/";
+  const out = { path: target, name };
+  try {
+    if (hasExec(s)) {
+      // GNU stat: tür|boyut|sahip|grup|simgesel izin|sekizlik|mtime(epoch)|bağlantı sayısı|hedef
+      const r = await runCmd(s, `stat -c '%F|%s|%U|%G|%A|%a|%Y|%h|%N' -- ${shQuote(target)} 2>&1`);
+      if (r.code !== 0) return res.status(400).json({ error: r.out.trim() || "Bilgi alınamadı." });
+      const p = r.out.trim().split("|");
+      out.kind = p[0] || "";
+      out.size = Number(p[1]) || 0;
+      out.owner = p[2] || "";
+      out.group = p[3] || "";
+      out.permsText = p[4] || "";
+      out.permsOctal = p[5] || "";
+      out.mtime = (Number(p[6]) || 0) * 1000;
+      out.links = p[7] || "";
+      out.isDir = /directory/i.test(out.kind);
+      out.isLink = /symbolic link/i.test(out.kind);
+      if (out.isLink) {
+        const m = (p[8] || "").match(/->\s*(.+?)'?$/);
+        if (m) out.linkTarget = m[1].replace(/^'/, "");
+      }
+      if (out.isDir) {
+        // Özyinelemeli toplam boyut (bayt) ve öğe sayısı
+        const du = await runCmd(s, `du -sb -- ${shQuote(target)} 2>/dev/null; echo '---'; find ${shQuote(target)} -mindepth 1 2>/dev/null | wc -l`);
+        const parts = du.out.split("---");
+        const total = (parts[0] || "").trim().split(/\s+/)[0];
+        if (/^\d+$/.test(total)) out.totalSize = Number(total);
+        const cnt = (parts[1] || "").trim();
+        if (/^\d+$/.test(cnt)) out.itemCount = Number(cnt);
+      }
+    } else {
+      // FTP: kabuk yok → temel bilgi
+      try {
+        const info = await s.fs.statInfo(target);
+        out.size = info.size >= 0 ? info.size : undefined;
+        out.mtime = info.mtime || undefined;
+      } catch (_) {}
+      out.limited = true;
+    }
+    res.json(out);
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ---- Kopyala / Taşı (sunucu içi) ----
 async function copyOrMove(req, res, move) {
   const s = getSession(req, res);

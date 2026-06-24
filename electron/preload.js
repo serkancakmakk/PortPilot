@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld("desktop", {
   // Uygulama içi yerel gezgin: ev klasörü ve klasör listeleme.
   homeDir: () => ipcRenderer.invoke("fs:home"),
   listDir: (p) => ipcRenderer.invoke("fs:list", p),
+  // Biyometrik (macOS Touch ID) — uygulama kilidi için
+  biometricAvailable: () => ipcRenderer.invoke("lock:biometric-available"),
+  biometricPrompt: (reason) => ipcRenderer.invoke("lock:biometric-prompt", reason),
   // Güncelleme olaylarını dinle (available/downloading/downloaded/latest/error)
   onUpdate: (cb) => {
     const handler = (_e, payload) => cb(payload);

@@ -2,7 +2,7 @@ import { $, toast, showLoading } from "./dom.js";
 import { icon } from "./icons.js";
 import { api } from "./api.js";
 import { cwd, history, session, currentItems, selectedItem, showHidden, viewMode, fileFilter, uploadPrefs, setShowHidden, setViewMode, setFileFilter, setHistory, setUploadPrefs } from "./state.js";
-import { navigate, renderList, applyFileView, syncCheckState, checkedItems, downloadItem, triggerDownload, fmtSize } from "./explorer.js";
+import { navigate, renderList, applyFileView, syncCheckState, checkedItems, downloadItem, triggerDownload, fmtSize, sortBy } from "./explorer.js";
 import { promptDialog } from "./dialog.js";
 
 export async function newFolder() {
@@ -74,6 +74,11 @@ export function initToolbar() {
       if (e.key === "Escape") { e.target.value = ""; setFileFilter(""); applyFileView(); }
     });
   }
+
+  // Sütun başlığına tıklayarak sırala
+  document.querySelectorAll(".file-table thead th[data-sort]").forEach((th) => {
+    th.addEventListener("click", () => sortBy(th.dataset.sort));
+  });
 
   // Tümünü seç
   $("check-all").addEventListener("change", (e) => {
