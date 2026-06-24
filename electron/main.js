@@ -195,10 +195,16 @@ ipcMain.handle("fs:list", (_e, dir) => {
     const entries = [];
     for (const ent of ents) {
       let isDir = ent.isDirectory();
-      if (ent.isSymbolicLink()) {
-        try { isDir = fs.statSync(path.join(resolved, ent.name)).isDirectory(); } catch (_) { continue; }
+      let size = 0, mtime = 0;
+      try {
+        const st = fs.statSync(path.join(resolved, ent.name)); // sembolik bağları da çözer
+        isDir = st.isDirectory();
+        size = st.size;
+        mtime = Math.floor(st.mtimeMs);
+      } catch (_) {
+        if (ent.isSymbolicLink()) continue; // erişilemeyen bağı atla
       }
-      entries.push({ name: ent.name, isDir });
+      entries.push({ name: ent.name, isDir, size, mtime });
     }
     entries.sort((a, b) =>
       a.isDir !== b.isDir ? (a.isDir ? -1 : 1) : a.name.localeCompare(b.name, "tr"));

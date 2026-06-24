@@ -4,7 +4,7 @@
 import { $, toast } from "./dom.js";
 import { applyIcons, iconFor } from "./icons.js";
 import { cwd, session } from "./state.js";
-import { navigate } from "./explorer.js";
+import { navigate, fmtSize, fmtDate } from "./explorer.js";
 import { askUploadOptions } from "./upload.js";
 import { rememberLocalPaths, renderRecentLocal } from "./recent-local.js";
 import { recordLocalPath, getLocalPathForHost, renderLocalLast } from "./local-last.js";
@@ -84,7 +84,7 @@ async function listDir(dir) {
   }
   curPath = r.path;
   curParent = r.parent;
-  curEntries = r.entries.map((e) => ({ abs: joinPath(curPath, e.name), name: e.name, isDir: e.isDir }));
+  curEntries = r.entries.map((e) => ({ abs: joinPath(curPath, e.name), name: e.name, isDir: e.isDir, size: e.size || 0, mtime: e.mtime || 0 }));
   selected.clear();
   $("lx-path").value = curPath;
   renderList();
@@ -125,9 +125,19 @@ function renderList() {
     nm.className = "lx-name";
     nm.textContent = ent.name;
 
+    const date = document.createElement("span");
+    date.className = "lx-date";
+    date.textContent = ent.mtime ? fmtDate(ent.mtime) : "";
+
+    const size = document.createElement("span");
+    size.className = "lx-size";
+    size.textContent = ent.isDir ? "—" : fmtSize(ent.size);
+
     row.appendChild(cb);
     row.appendChild(ico);
     row.appendChild(nm);
+    row.appendChild(date);
+    row.appendChild(size);
 
     row.addEventListener("dblclick", () => { if (ent.isDir) listDir(abs); });
     row.addEventListener("click", () => { cb.checked = !cb.checked; cb.dispatchEvent(new Event("change")); });

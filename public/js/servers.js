@@ -7,12 +7,17 @@ import { confirmDialog } from "./dialog.js";
 let _savedServers = [];
 let _selectedServerIds = new Set();
 
-export function getSavedServers() { return _savedServers; }
+export function getSavedServers() {
+  return _savedServers;
+}
 
 // Kapatılmış grupların adlarını localStorage'da sakla
 function loadCollapsedGroups() {
-  try { return new Set(JSON.parse(localStorage.getItem("collapsedGroups") || "[]")); }
-  catch (_) { return new Set(); }
+  try {
+    return new Set(JSON.parse(localStorage.getItem("collapsedGroups") || "[]"));
+  } catch (_) {
+    return new Set();
+  }
 }
 function saveCollapsedGroups(set) {
   localStorage.setItem("collapsedGroups", JSON.stringify([...set]));
@@ -44,9 +49,19 @@ export async function renderSavedServers() {
     btn.textContent = `Seçilenleri Sil (${_selectedServerIds.size})`;
   };
   const bulkDelete = async (json, confirmMsg) => {
-    if (!(await confirmDialog(confirmMsg, { title: "Kayıtları Sil", okText: "Sil", danger: true }))) return;
-    try { await api("servers/bulk-delete", { method: "POST", json }); }
-    catch (e) { toast(e.message, true); }
+    if (
+      !(await confirmDialog(confirmMsg, {
+        title: "Kayıtları Sil",
+        okText: "Sil",
+        danger: true,
+      }))
+    )
+      return;
+    try {
+      await api("servers/bulk-delete", { method: "POST", json });
+    } catch (e) {
+      toast(e.message, true);
+    }
     renderSavedServers();
   };
 
@@ -91,7 +106,8 @@ export async function renderSavedServers() {
       section.classList.toggle("collapsed", nowCollapsed);
       inner.hidden = nowCollapsed;
       const set = loadCollapsedGroups();
-      if (nowCollapsed) set.add(label); else set.delete(label);
+      if (nowCollapsed) set.add(label);
+      else set.delete(label);
       saveCollapsedGroups(set);
     });
 
@@ -99,7 +115,10 @@ export async function renderSavedServers() {
   });
 
   $("srv-del-all").addEventListener("click", () =>
-    bulkDelete({ all: true }, `TÜM kayıtlı sunucular (${servers.length}) silinsin mi?`),
+    bulkDelete(
+      { all: true },
+      `TÜM kayıtlı sunucular (${servers.length}) silinsin mi?`,
+    ),
   );
   $("srv-del-selected").addEventListener("click", () => {
     const ids = [..._selectedServerIds];
@@ -135,14 +154,25 @@ function buildServerCell(s, updateBulkBtn) {
     <span class="srv-badge" title="${hasCreds ? "Kimlik bilgisi kayıtlı" : "Bağlanırken parola istenir"}">${hasCreds ? "🔓" : "🔒"}</span>
     <span class="srv-del" title="Kaydı sil">×</span>`;
   el.querySelector(".srv-name").textContent = s.name;
-  el.querySelector(".srv-host").textContent = `${protoUp} · ${s.username}@${s.host}:${s.port}`;
+  el.querySelector(".srv-host").textContent =
+    `${protoUp} · ${s.username}@${s.host}:${s.port}`;
   el.className = "srv-tile" + (false ? " online" : ""); // online durumu connections modülünden kontrol edilebilir
   el.addEventListener("click", () => selectServer(s));
   el.querySelector(".srv-del").addEventListener("click", async (e) => {
     e.stopPropagation();
-    if (!(await confirmDialog(`"${s.name}" kaydı silinsin mi?`, { title: "Kaydı Sil", okText: "Sil", danger: true }))) return;
-    try { await api("servers/" + encodeURIComponent(s.id), { method: "DELETE" }); }
-    catch (err) { toast(err.message, true); }
+    if (
+      !(await confirmDialog(`"${s.name}" kaydı silinsin mi?`, {
+        title: "Kaydı Sil",
+        okText: "Sil",
+        danger: true,
+      }))
+    )
+      return;
+    try {
+      await api("servers/" + encodeURIComponent(s.id), { method: "DELETE" });
+    } catch (err) {
+      toast(err.message, true);
+    }
     renderSavedServers();
   });
   cell.appendChild(pick);
@@ -156,8 +186,12 @@ export function maybeSaveServer(body) {
   const isKey = !!(body.privateKey && body.privateKey.trim());
   const name = $("save-name").value.trim() || `${body.username}@${body.host}`;
   const server = {
-    name, host: body.host, port: body.port, username: body.username,
-    protocol: body.protocol || "sftp", auth: isKey ? "key" : "password",
+    name,
+    host: body.host,
+    port: body.port,
+    username: body.username,
+    protocol: body.protocol || "sftp",
+    auth: isKey ? "key" : "password",
     password: savePass && !isKey ? body.password : "",
     privateKey: savePass && isKey ? body.privateKey : "",
     passphrase: savePass && isKey ? body.passphrase : "",
@@ -183,7 +217,9 @@ export function selectServer(s) {
   document.querySelector(`[data-auth="${auth}"]`).click();
   const hasCreds = !!(s.password || s.privateKey);
   if (hasCreds) {
-    f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event("submit", { cancelable: true }));
+    f.requestSubmit
+      ? f.requestSubmit()
+      : f.dispatchEvent(new Event("submit", { cancelable: true }));
   } else {
     (s.auth === "key" ? f.privateKey : f.password).focus();
     $("login-error").textContent =
