@@ -19,6 +19,17 @@ if (process.platform === "linux") {
   app.disableHardwareAcceleration();
 }
 
+// Chromium paylaşımlı belleği (shared memory) önce /dev/shm, sonra geçici klasörde
+// (/tmp ya da $TMPDIR) oluşturur. Bazı ortamlarda /tmp erişilemez olabilir
+// ("No such process" / W_OK|X_OK) → garanti yazılabilir bir klasöre yönlendir.
+// Renderer/GPU süreçleri doğmadan ÖNCE ayarlanmalı.
+try {
+  const safeTmp = path.join(app.getPath("userData"), "tmp");
+  fs.mkdirSync(safeTmp, { recursive: true });
+  process.env.TMPDIR = safeTmp;
+  app.setPath("temp", safeTmp);
+} catch (_) {}
+
 // Çökme günlüğü: açılış dahil her yakalanmayan hatayı dosyaya yaz (uzaktan teşhis için).
 function logCrash(tag, err) {
   const msg = `[${new Date().toISOString()}] ${tag}: ${(err && err.stack) || err}\n`;

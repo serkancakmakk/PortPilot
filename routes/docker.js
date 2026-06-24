@@ -141,7 +141,12 @@ router.get("/api/docker/logs", (req, res) => {
   const id = req.query.id;
   if (!id || !SAFE_ID.test(id))
     return res.status(400).json({ error: "Geçersiz kimlik." });
-  dockerExec(s, `docker logs --tail 400 --timestamps ${shQuote(id)} 2>&1`, (err, r) => {
+  // tail: "all" ya da 1..50000 arası sayı; geçersizse 400
+  let tail = "400";
+  const t = String(req.query.tail || "").trim();
+  if (t === "all") tail = "all";
+  else if (/^\d+$/.test(t)) tail = String(Math.min(Math.max(parseInt(t, 10), 1), 50000));
+  dockerExec(s, `docker logs --tail ${tail} --timestamps ${shQuote(id)} 2>&1`, (err, r) => {
     if (err) return res.status(400).json({ error: err.message });
     res.json({ logs: r.out || "(log yok)" });
   });

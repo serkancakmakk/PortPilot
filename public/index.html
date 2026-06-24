@@ -280,10 +280,20 @@
       <div class="editor-head">
         <span class="editor-title" id="term-title">⌨ Terminal</span>
         <div class="spacer"></div>
+        <button id="term-min" class="ed-btn" title="Küçült (bağlantı açık kalır)"><span class="nav-ico-wrap" data-icon="minus"></span> Küçült</button>
         <button id="term-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
       </div>
       <div id="term-host" class="term-host"></div>
     </div>
+  </div>
+
+  <!-- Küçültülmüş terminal çubuğu -->
+  <div id="term-dock" class="term-dock" hidden>
+    <button id="term-restore" class="term-dock-btn" title="Terminale dön">
+      <span class="q-ico" data-icon="terminal"></span>
+      <span id="term-dock-name">Terminal</span>
+    </button>
+    <button id="term-dock-close" class="term-dock-x" title="Kapat">✕</button>
   </div>
 
   <!-- Docker log görüntüleyici -->
@@ -292,6 +302,15 @@
       <div class="editor-head">
         <span class="editor-title" id="logs-title">Loglar</span>
         <div class="spacer"></div>
+        <label class="logs-tail-label">Satır:
+          <select id="logs-tail" class="logs-tail-select">
+            <option value="100">100</option>
+            <option value="400" selected>400</option>
+            <option value="1000">1000</option>
+            <option value="5000">5000</option>
+            <option value="all">Tümü</option>
+          </select>
+        </label>
         <button id="logs-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> Yenile</button>
         <button id="logs-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
       </div>

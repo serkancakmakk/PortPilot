@@ -2069,6 +2069,47 @@ tr.dir .fname {
   margin-bottom: 2px;
   color: var(--text, #e6e9ef);
   border-bottom: 1px solid rgba(255, 255, 255, .1);
+  cursor: pointer;
+  user-select: none;
+}
+
+.dk-group-head:hover {
+  background: rgba(255, 255, 255, .04);
+}
+
+.dk-group-caret {
+  display: inline-block;
+  font-size: 11px;
+  opacity: .7;
+  transition: transform .15s ease;
+}
+
+.dk-group.collapsed .dk-group-caret {
+  transform: rotate(-90deg);
+}
+
+.dk-group.collapsed .dk-table {
+  display: none;
+}
+
+/* Log satır sayısı seçici */
+.logs-tail-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  opacity: .85;
+  margin-right: 4px;
+}
+
+.logs-tail-select {
+  background: rgba(255, 255, 255, .06);
+  color: var(--text, #e6e9ef);
+  border: 1px solid rgba(255, 255, 255, .15);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 /* ---- Konteyner terminali ---- */
@@ -2077,6 +2118,74 @@ tr.dir .fname {
   height: min(600px, 80vh);
   display: flex;
   flex-direction: column;
+  /* Kullanıcı köşeden sürükleyerek büyütüp küçültebilir */
+  resize: both;
+  overflow: hidden;
+  min-width: 360px;
+  min-height: 240px;
+  max-width: 98vw;
+  max-height: 94vh;
+}
+
+/* Sürükleme tutamacını biraz daha görünür yap */
+.term-box::-webkit-resizer {
+  background: rgba(255, 255, 255, .25);
+}
+
+/* Küçültülmüş terminal çubuğu (sağ altta yüzer) */
+.term-dock {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 160;
+  display: flex;
+  align-items: stretch;
+  gap: 1px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  background: var(--panel-2, #1a2236);
+  border: 1px solid var(--border, rgba(255, 255, 255, .12));
+  animation: pop .2s cubic-bezier(.2, .9, .3, 1.2);
+}
+
+.term-dock-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  background: transparent;
+  border: 0;
+  color: var(--text, #e6e9ef);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  max-width: 240px;
+}
+
+.term-dock-btn:hover {
+  background: rgba(255, 255, 255, .06);
+}
+
+.term-dock-btn #term-dock-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.term-dock-x {
+  padding: 0 12px;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--border, rgba(255, 255, 255, .12));
+  color: var(--muted, #9aa4bf);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.term-dock-x:hover {
+  background: rgba(255, 80, 80, .15);
+  color: #fff;
 }
 
 .term-host {

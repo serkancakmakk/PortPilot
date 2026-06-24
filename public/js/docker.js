@@ -3,6 +3,15 @@ import { api } from "./api.js";
 import { confirmDialog } from "./dialog.js";
 
 let dockerTab = "containers";
+const collapsedGroups = new Set();
+
+function toggleGroup(key, el) {
+  const wrap = el.closest(".dk-group");
+  if (!wrap) return;
+  const collapsed = wrap.classList.toggle("collapsed");
+  if (collapsed) collapsedGroups.add(key); else collapsedGroups.delete(key);
+}
+window._dockerToggleGroup = toggleGroup;
 
 function fmtDuration(ms) {
   if (!ms || ms < 0) return "—";
@@ -111,8 +120,10 @@ function renderContainers(list, statsMap = {}) {
   let html = "";
   groups.forEach((items, g) => {
     const label = g || "Diğer (compose dışı)";
+    const key = g || "__other__";
+    const collapsed = collapsedGroups.has(key);
     const rows = items.map((c) => containerRow(c, statsMap)).join("");
-    html += `<div class="dk-group"><div class="dk-group-head">🧩 ${escapeHtml(label)} <span class="srv-group-count">${items.length}</span></div><table class="dk-table">${DK_HEAD}<tbody>${rows}</tbody></table></div>`;
+    html += `<div class="dk-group${collapsed ? " collapsed" : ""}"><div class="dk-group-head" onclick="window._dockerToggleGroup('${escapeAttr(key)}',this)"><span class="dk-group-caret">▾</span> 🧩 ${escapeHtml(label)} <span class="srv-group-count">${items.length}</span></div><table class="dk-table">${DK_HEAD}<tbody>${rows}</tbody></table></div>`;
   });
   $("docker-body").innerHTML = html;
 }
@@ -187,8 +198,9 @@ export async function dockerLogs(id, name) {
 }
 async function refreshLogs() {
   if (!logsCtxId) return;
+  const tail = ($("logs-tail") && $("logs-tail").value) || "400";
   try {
-    const data = await api("docker/logs?id=" + encodeURIComponent(logsCtxId));
+    const data = await api("docker/logs?id=" + encodeURIComponent(logsCtxId) + "&tail=" + encodeURIComponent(tail));
     $("logs-area").textContent = data.logs || "(log yok)";
     $("logs-area").scrollTop = $("logs-area").scrollHeight;
   } catch (e) { $("logs-area").textContent = "Hata: " + e.message; }
@@ -219,6 +231,7 @@ export function initDocker() {
     });
   });
   $("logs-refresh").addEventListener("click", refreshLogs);
+  $("logs-tail").addEventListener("change", refreshLogs);
   $("logs-close").addEventListener("click", () => { $("docker-logs").hidden = true; logsCtxId = null; });
 
   // inline onclick handler'lar için global köprüler

@@ -12,7 +12,11 @@ export function openTerminal(id, name, dir) {
     toast("Terminal bileşeni yüklenemedi.", true);
     return;
   }
+  // Önceki terminal varsa kapat (sızıntıyı önle)
+  disposeTerminal();
+  $("term-dock").hidden = true;
   $("term-title").textContent = "⌨ " + name;
+  $("term-dock-name").textContent = name;
   $("terminal-modal").hidden = false;
   const host = $("term-host");
   host.innerHTML = "";
@@ -69,21 +73,46 @@ export function openTerminal(id, name, dir) {
     } catch (_) {}
   };
   window.addEventListener("resize", onResize);
-  termState = { term, ws, onResize };
+  // Kutu boyutu (kullanıcı sürükleyince) değişince xterm'i yeniden sığdır
+  let ro = null;
+  if (typeof ResizeObserver !== "undefined") {
+    ro = new ResizeObserver(() => onResize());
+    ro.observe(host);
+  }
+  termState = { term, ws, onResize, ro, fit };
+}
+
+function disposeTerminal() {
+  if (!termState) return;
+  window.removeEventListener("resize", termState.onResize);
+  try { termState.ro && termState.ro.disconnect(); } catch (_) {}
+  try { termState.ws.close(); } catch (_) {}
+  try { termState.term.dispose(); } catch (_) {}
+  termState = null;
 }
 
 export function closeTerminal() {
-  if (termState) {
-    window.removeEventListener("resize", termState.onResize);
-    try {
-      termState.ws.close();
-    } catch (_) {}
-    try {
-      termState.term.dispose();
-    } catch (_) {}
-    termState = null;
-  }
+  disposeTerminal();
   $("terminal-modal").hidden = true;
+  $("term-dock").hidden = true;
+}
+
+// Küçült: overlay'i gizle ama bağlantıyı/oturumu canlı tut
+export function minimizeTerminal() {
+  if (!termState) return closeTerminal();
+  $("terminal-modal").hidden = true;
+  $("term-dock").hidden = false;
+}
+
+// Geri dön: overlay'i tekrar göster ve yeniden sığdır
+export function restoreTerminal() {
+  if (!termState) return;
+  $("term-dock").hidden = true;
+  $("terminal-modal").hidden = false;
+  requestAnimationFrame(() => {
+    termState.onResize();
+    termState.term.focus();
+  });
 }
 
 export function openServerTerminal(dir) {
@@ -93,6 +122,9 @@ export function openServerTerminal(dir) {
 
 export function initTerminal() {
   $("term-close").addEventListener("click", closeTerminal);
+  $("term-min").addEventListener("click", minimizeTerminal);
+  $("term-restore").addEventListener("click", restoreTerminal);
+  $("term-dock-close").addEventListener("click", closeTerminal);
   const btnTerminal = $("btn-terminal");
   if (btnTerminal)
     btnTerminal.addEventListener("click", () => openServerTerminal());
