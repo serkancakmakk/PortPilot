@@ -3399,6 +3399,8 @@ body.locked { overflow: hidden; }
 .dp-bread .crumb { cursor: pointer; color: var(--accent-2); padding: 1px 4px; border-radius: 5px; }
 .dp-bread .crumb:hover { background: var(--hover); }
 .dp-bread .sep { color: var(--muted); }
+.dp-bread .dp-localpath { cursor: default; color: var(--text); font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dp-bread .dp-localpath:hover { background: none; }
 .dp-transfer { display: flex; gap: 8px; padding: 8px 10px 6px; }
 .dp-transfer .tbtn { flex: 1; }
 .dp-xfer-hint {

@@ -258,6 +258,33 @@ ipcMain.handle("fs:list", (_e, dir) => {
   }
 });
 
+// Uzak bir indirme URL'sini yerel klasöre kaydet (çift panel: sunucu → bu bilgisayar).
+// URL yerel Express sunucusunu işaret eder (http://127.0.0.1:<port>/api/download…).
+ipcMain.handle("fs:download", async (_e, { url, dir, name }) => {
+  try {
+    if (!url || !dir || !name) return { ok: false, error: "Eksik parametre." };
+    const safe = String(name).replace(/[\\/]/g, "_") || "indirme";
+    let dest = path.join(dir, safe);
+    // Üzerine yazmamak için gerekiyorsa numara ekle (ad (1).ext …)
+    if (fs.existsSync(dest)) {
+      const ext = path.extname(safe), base = path.basename(safe, ext);
+      let i = 1;
+      while (fs.existsSync(path.join(dir, `${base} (${i})${ext}`))) i++;
+      dest = path.join(dir, `${base} (${i})${ext}`);
+    }
+    const res = await fetch(url);
+    if (!res.ok || !res.body) return { ok: false, error: "HTTP " + res.status };
+    const { Readable } = require("stream");
+    const ws = fs.createWriteStream(dest);
+    await new Promise((resolve, reject) => {
+      Readable.fromWeb(res.body).pipe(ws).on("finish", resolve).on("error", reject);
+    });
+    return { ok: true, path: dest };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 // Güncelleme denetle: paketliyse electron-updater, değilse GitHub API bilgisi
 ipcMain.handle("app:check-update", async (_e, opts) => {
   const silent = !!(opts && opts.silent);

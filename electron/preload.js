@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld("desktop", {
   // Uygulama içi yerel gezgin: ev klasörü ve klasör listeleme.
   homeDir: () => ipcRenderer.invoke("fs:home"),
   listDir: (p) => ipcRenderer.invoke("fs:list", p),
+  // Bir URL'yi (uzak dosya indirme ucu) yerel bir klasöre kaydet — çift panel
+  // "Soldan al" (sunucu → bu bilgisayar) için.
+  downloadToDir: (url, dir, name) => ipcRenderer.invoke("fs:download", { url, dir, name }),
   // Biyometrik (macOS Touch ID) — uygulama kilidi için
   biometricAvailable: () => ipcRenderer.invoke("lock:biometric-available"),
   biometricPrompt: (reason) => ipcRenderer.invoke("lock:biometric-prompt", reason),

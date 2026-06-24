@@ -76,7 +76,7 @@ Bağlantılar ve dosya işlemleri zaman damgalı kayıt.
 - **Kopyala / Kes / Yapıştır**, yeni klasör, yeniden adlandırma / taşıma, özyinelemeli silme (ilerleme çubuğu)
 - **İzinler (chmod)** ve **Özellikler** paneli (sahip/grup, sekizlik+simgesel izin, özyinelemeli boyut)
 - **Önizleme:** resim ve PDF'i indirmeden pencerede gör · **yerleşik metin düzenleyici** (`Ctrl/Cmd+S`)
-- **Sunucudan sunucuya aktarım** ve **çift panel (split-pane):** iki sunucuyu yan yana açıp aralarında aktar
+- **Sunucudan sunucuya aktarım** ve **çift panel (split-pane):** iki sunucuyu — ya da **bu bilgisayarı (yerel ↔ sunucu, masaüstünde)** — yan yana açıp aralarında aktar
 - Sol kenar çubuğunda **sık kullanılanlar**, hızlı erişim ve **disk kullanım** göstergesi
 
 ### 🐳 Docker yönetimi
