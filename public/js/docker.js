@@ -52,6 +52,10 @@ export async function loadDocker() {
         }
       }
       renderContainers(data.containers, statsMap);
+    } else if (dockerTab === "compose") {
+      const data = await api("docker/compose");
+      if (!data.available) return showDockerUnavailable(data.error);
+      renderCompose(data.projects);
     } else if (dockerTab === "idle") {
       const data = await api("docker/idle");
       if (!data.available) return showDockerUnavailable(data.error);
@@ -138,6 +142,50 @@ function renderImages(list) {
     <td><div class="dk-actions">${btn("rmi", i.id, "image", "🗑 Sil", "danger")}</div></td>
   </tr>`).join("");
   $("docker-body").innerHTML = `<table class="dk-table"><thead><tr><th>Görüntü</th><th>Boyut</th><th>Oluşturulma</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function renderCompose(list) {
+  $("docker-status").textContent = `${list.length} compose projesi`;
+  if (!list.length) {
+    $("docker-body").innerHTML = `<div class="dk-msg">Compose projesi bulunamadı.<br><br>` +
+      `<span class="dk-sub">Yalnızca <code>docker compose</code> ile başlatılmış (compose etiketli) konteynerler burada görünür.</span></div>`;
+    return;
+  }
+  const cards = list.map((p) => {
+    const allUp = p.running === p.total && p.total > 0;
+    const cls = allUp ? "running" : p.running > 0 ? "paused" : "exited";
+    const dir = escapeAttr(p.dir || "");
+    const act = (a, label, extra = "") =>
+      `<button class="dk-btn ${extra}" ${p.dir ? "" : "disabled title='compose klasörü bilinmiyor'"} onclick="window._composeAction('${escapeAttr(a)}','${dir}','${escapeAttr(p.name)}')">${label}</button>`;
+    return `<div class="dk-group">
+      <div class="dk-group-head" style="cursor:default">
+        🐳 ${escapeHtml(p.name)}
+        <span class="dk-state ${cls}" style="margin-left:8px"><span class="dot"></span>${p.running}/${p.total} çalışıyor</span>
+      </div>
+      <div class="cmp-meta dk-sub">${p.dir ? "📁 " + escapeHtml(p.dir) : "klasör bilinmiyor"} ${p.services.length ? "· servisler: " + escapeHtml(p.services.join(", ")) : ""}</div>
+      <div class="dk-actions cmp-actions">
+        ${act("up", "▲ Up (-d)", "go")}
+        ${act("restart", "⟳ Yeniden")}
+        ${act("stop", "⏸ Durdur")}
+        ${act("pull", "⬇ Pull")}
+        ${act("down", "⏹ Down", "danger")}
+      </div>
+    </div>`;
+  }).join("");
+  $("docker-body").innerHTML = cards;
+}
+
+export async function composeAction(action, dir, name) {
+  if (!dir) return toast("Bu projenin compose klasörü bilinmiyor.", true);
+  if (action === "down" &&
+      !(await confirmDialog(`“${name}” stack'i durdurulup kaldırılsın mı? (docker compose down)`, { title: "Compose Down", okText: "Down", danger: true }))) return;
+  showLoading(true);
+  try {
+    const r = await api("docker/compose-action", { method: "POST", json: { dir, action } });
+    toast(r.output ? r.output.split("\n").filter(Boolean).slice(-1)[0] : "İşlem tamam");
+    await loadDocker();
+  } catch (e) { toast(e.message, true); }
+  finally { showLoading(false); }
 }
 
 const IDLE_THRESHOLD = 7 * 86400 * 1000;
@@ -238,4 +286,5 @@ export function initDocker() {
   window._dockerAction = dockerAction;
   window._dockerLogs = dockerLogs;
   window._dockerPrune = dockerPrune;
+  window._composeAction = composeAction;
 }

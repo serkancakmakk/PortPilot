@@ -181,4 +181,61 @@ router.post("/api/docker/action", (req, res) => {
   });
 });
 
+// ---- Docker Compose: stack (proje) listesi ----
+// `docker ps` etiketlerinden compose projelerini grupla. Her proje için çalışan/
+// toplam konteyner sayısı ve working_dir (compose dosyasının yeri) çıkar.
+router.get("/api/docker/compose", (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  const cmd = "docker ps -aq --no-trunc | xargs -r docker inspect --format '{{json .}}'";
+  dockerExec(s, cmd, (err, r) => {
+    if (err) return res.json({ available: false, error: err.message });
+    if (dockerUnavailable(r))
+      return res.json({ available: false, error: (r.errout || "Docker bulunamadı").trim() });
+    const projects = new Map();
+    for (const c of parseJsonLines(r.out)) {
+      const labels = (c.Config && c.Config.Labels) || {};
+      const proj = labels["com.docker.compose.project"];
+      if (!proj) continue;
+      const dir = labels["com.docker.compose.project.working_dir"] || "";
+      const file = labels["com.docker.compose.project.config_files"] || "";
+      const running = !!(c.State && c.State.Running);
+      if (!projects.has(proj)) projects.set(proj, { name: proj, dir, file, total: 0, running: 0, services: new Set() });
+      const p = projects.get(proj);
+      p.total++; if (running) p.running++;
+      const svc = labels["com.docker.compose.service"];
+      if (svc) p.services.add(svc);
+      if (!p.dir && dir) p.dir = dir;
+      if (!p.file && file) p.file = file;
+    }
+    const list = [...projects.values()].map((p) => ({
+      name: p.name, dir: p.dir, file: p.file, total: p.total, running: p.running,
+      services: [...p.services].sort(),
+    })).sort((a, b) => a.name.localeCompare(b.name));
+    res.json({ available: true, projects: list });
+  });
+});
+
+// ---- Docker Compose: stack eylemi (up/down/restart/stop/start/pull) ----
+const COMPOSE_ACTIONS = {
+  up: "up -d", down: "down", restart: "restart", stop: "stop", start: "start", pull: "pull",
+};
+router.post("/api/docker/compose-action", (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  const { dir, action } = req.body || {};
+  const sub = COMPOSE_ACTIONS[action];
+  if (!sub) return res.status(400).json({ error: "Geçersiz işlem." });
+  if (!dir || typeof dir !== "string") return res.status(400).json({ error: "Proje klasörü gerekli." });
+  // compose dosyasının bulunduğu klasöre geçip komutu çalıştır.
+  // `docker compose` (v2) yoksa `docker-compose` (v1) ile dene.
+  const cmd = `cd ${shQuote(dir)} && (docker compose ${sub} || docker-compose ${sub}) 2>&1`;
+  dockerExec(s, cmd, (err, r) => {
+    if (err) return res.status(400).json({ error: err.message });
+    if (r.code !== 0)
+      return res.status(400).json({ error: (r.out || r.errout || "İşlem başarısız").trim().slice(-800) });
+    res.json({ ok: true, output: (r.out || "").trim().slice(-2000) });
+  });
+});
+
 module.exports = router;

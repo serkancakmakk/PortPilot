@@ -20,6 +20,7 @@ import { initSystools } from "./systools.js";
 import { initWhatsNew } from "./whatsnew.js";
 import { initTransferQueue } from "./transfer-queue.js";
 import { initLock } from "./lock.js";
+import { initTheme } from "./theme.js";
 import { hideMenu, showAreaMenu, renameItem, deleteItem } from "./context-menu.js";
 import { navigate, joinPath } from "./explorer.js";
 import { cwd, activeConnId, selectedItem } from "./state.js";
@@ -67,6 +68,7 @@ async function applyVersionBadge() {
 document.addEventListener("DOMContentLoaded", () => {
   applyIcons();
   applyVersionBadge();
+  initTheme();
   initLock();
   initLogin();
   initEditor();

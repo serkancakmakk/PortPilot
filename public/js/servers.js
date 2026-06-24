@@ -152,12 +152,17 @@ function buildServerCell(s, updateBulkBtn) {
       <span class="srv-host"></span>
     </span>
     <span class="srv-badge" title="${hasCreds ? "Kimlik bilgisi kayıtlı" : "Bağlanırken parola istenir"}">${hasCreds ? "🔓" : "🔒"}</span>
+    <span class="srv-edit" title="Bağlantıyı düzenle">✎</span>
     <span class="srv-del" title="Kaydı sil">×</span>`;
   el.querySelector(".srv-name").textContent = s.name;
   el.querySelector(".srv-host").textContent =
     `${protoUp} · ${s.username}@${s.host}:${s.port}`;
   el.className = "srv-tile" + (false ? " online" : ""); // online durumu connections modülünden kontrol edilebilir
   el.addEventListener("click", () => selectServer(s));
+  el.querySelector(".srv-edit").addEventListener("click", (e) => {
+    e.stopPropagation();
+    editServer(s);
+  });
   el.querySelector(".srv-del").addEventListener("click", async (e) => {
     e.stopPropagation();
     if (
@@ -178,6 +183,70 @@ function buildServerCell(s, updateBulkBtn) {
   cell.appendChild(pick);
   cell.appendChild(el);
   return cell;
+}
+
+// Kayıtlı bağlantıyı silmeden düzenle (host/port/kullanıcı/ad/grup/protokol).
+// Kimlik bilgileri (parola/anahtar) korunur; id ile yerinde güncellenir.
+function editServer(s) {
+  const h = document.createElement("div");
+  h.className = "app-dialog-overlay";
+  h.innerHTML = `
+    <div class="app-dialog srv-edit-dialog" role="dialog" aria-modal="true">
+      <div class="app-dialog-title">🛠️ Bağlantıyı Düzenle</div>
+      <div class="se-grid">
+        <label class="se-field se-wide">Ad<input class="se-name" type="text"></label>
+        <label class="se-field">Protokol<select class="se-proto">
+          <option value="sftp">SFTP (SSH)</option>
+          <option value="ftp">FTP</option>
+          <option value="ftps">FTPS</option>
+        </select></label>
+        <label class="se-field">Grup / etiket<input class="se-group" type="text" placeholder="ör. Üretim"></label>
+        <label class="se-field se-wide">Sunucu (host)<input class="se-host" type="text"></label>
+        <label class="se-field">Port<input class="se-port" type="number" min="1" max="65535"></label>
+        <label class="se-field">Kullanıcı<input class="se-user" type="text"></label>
+      </div>
+      <div class="se-note dk-sub">Parola / anahtar korunur. Değiştirmek için kaydı seçip yeniden bağlanırken güncelle.</div>
+      <div class="app-dialog-actions">
+        <button type="button" class="ad-btn ad-cancel">İptal</button>
+        <button type="button" class="ad-btn ad-ok primary">Kaydet</button>
+      </div>
+    </div>`;
+  document.body.appendChild(h);
+  requestAnimationFrame(() => h.classList.add("show"));
+  const q = (c) => h.querySelector(c);
+  q(".se-name").value = s.name || "";
+  q(".se-proto").value = s.protocol || "sftp";
+  q(".se-group").value = s.group || "";
+  q(".se-host").value = s.host || "";
+  q(".se-port").value = s.port || "";
+  q(".se-user").value = s.username || "";
+
+  const close = () => { h.classList.remove("show"); document.removeEventListener("keydown", onKey, true); setTimeout(() => h.remove(), 140); };
+  const onKey = (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(); } };
+  document.addEventListener("keydown", onKey, true);
+  q(".ad-cancel").addEventListener("click", close);
+  h.addEventListener("mousedown", (e) => { if (e.target === h) close(); });
+  q(".ad-ok").addEventListener("click", async () => {
+    const host = q(".se-host").value.trim();
+    const username = q(".se-user").value.trim();
+    const port = parseInt(q(".se-port").value, 10);
+    if (!host || !username) return toast("Sunucu ve kullanıcı gerekli.", true);
+    const payload = {
+      ...s, // id + kimlik bilgileri (parola/anahtar/passphrase/auth) korunur
+      name: q(".se-name").value.trim() || `${username}@${host}`,
+      protocol: q(".se-proto").value,
+      group: q(".se-group").value.trim(),
+      host, username,
+      port: Number.isFinite(port) ? port : s.port,
+    };
+    try {
+      await api("servers", { method: "POST", json: payload });
+      toast("Bağlantı güncellendi");
+      close();
+      renderSavedServers();
+    } catch (e) { toast(e.message, true); }
+  });
+  setTimeout(() => q(".se-host").focus(), 40);
 }
 
 export function maybeSaveServer(body) {

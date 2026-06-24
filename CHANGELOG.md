@@ -7,6 +7,18 @@
 - ✏️ **Toplu yeniden adlandırma:** Birden çok öğe seçip sağ tık → "Toplu yeniden adlandır…" ile **bul/değiştir (regex)** veya **sıralı isimlendirme** (`{name}`, `{n}`, başlangıç + basamak) uygula; **canlı önizleme** ve çakışma uyarısı.
 - ↧ **Sürükleyip indirme:** Dosya/klasörü listeden bilgisayarına sürükleyip bırakarak indir (klasörler `.tar.gz` olarak).
 
+**Sunucu araçları — yeni**
+- ⏰ **Cron yönetimi:** "Sunucu Araçları → Cron" ile kullanıcının `crontab`'ını doğrudan düzenle ve kaydet.
+- 👥 **Kullanıcı & grup + sahiplik:** "Kullanıcılar" sekmesinde sistem kullanıcılarını listele; **chown** kutusuyla bir yolun sahibini/grubunu (gerekirse `-R`) değiştir.
+- 🐳 **Docker Compose:** "Docker → Compose" sekmesinde compose projelerini (stack) çalışan/toplam sayısıyla gör; **up / down / restart / stop / pull** ile yönet.
+
+**Bağlantı & güvenlik — yeni**
+- 🛠️ **Bağlantı düzenleme:** Kayıtlı bir sunucunun üzerine gelip ✎ ile **host/port/kullanıcı/ad/grup/protokol** bilgilerini silmeden güncelle (parola/anahtar korunur).
+- 🔑 **SSH anahtarı üret & kur:** "Sunucu Araçları → SSH" ile sunucuda ed25519 anahtar çifti üret, açık anahtarı `authorized_keys`'e ekle; özel anahtarı kopyalayıp bağlantına kaydederek parolasız bağlan.
+
+**Deneyim — yeni**
+- 🌗 **Karanlık / aydınlık tema:** Sidebar → "Karanlık Tema" ile geçiş; seçim hatırlanır, ilk açılışta sistem tercihine uyar.
+
 **Dosya yönetimi**
 - 💾 **İndirirken "Nereye kaydedeyim?":** Masaüstü uygulamasında dosya/klasör indirirken sistem **Kaydet** penceresi açılır; istediğin klasörü seçersin ve son seçtiğin konum sonraki indirme için hatırlanır.
 - 🐛 **İndirme düzeltmesi:** Bazı durumlarda indirmenin hiç başlamamasına yol açan hata (`session is not defined`) giderildi.
@@ -47,17 +59,7 @@
 ## Yol haritası (sıradaki sürümlerde)
 
 **Bağlantı & sunucular**
-- 🛠️ **Bağlantı düzenleme:** Kayıtlı sunucuyu silmeden host/port/kullanıcı güncelleme; klasör/etiket ile gruplama.
 - 🗂️ **Çoklu sekme / iki panel (split-pane):** İki sunucuyu yan yana açıp aralarında sürükle-bırakla aktarım (FileZilla tarzı çift panel).
 
-**Sunucu araçları**
-- ⏰ **Cron yönetimi:** `crontab` üzerinden zamanlanmış görevleri listele / düzenle.
-- 👥 **Kullanıcı & grup yönetimi:** Kullanıcıları listele/ekle, `chown` ile sahip değiştir.
-- 🐳 **Docker Compose:** Stack bazlı görünüm; `docker compose up/down/ps`.
-
 **Güvenlik**
-- 🔑 **SSH anahtarı üret & kur:** `ssh-keygen` + `authorized_keys`'e ekleyerek parolasız bağlantıya geç.
 - 📜 **Bağlantı geçmişi & işlem log'u:** Hangi sunucuya ne zaman bağlanıldı, hangi dosya silindi/taşındı (audit trail).
-
-**Deneyim**
-- 🌗 **Karanlık / aydınlık tema** seçimi.

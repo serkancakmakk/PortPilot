@@ -18,10 +18,12 @@ function setTab(tab) {
 function msg(html) { $("systools-body").innerHTML = `<div class="dk-msg">${html}</div>`; }
 
 async function loadTab() {
-  const body = $("systools-body");
   $("systools-status").textContent = "";
   if (sysTab === "log") return renderLog();
   if (sysTab === "diskusage") return loadDiskUsage();
+  if (sysTab === "cron") return loadCron();
+  if (sysTab === "users") return loadUsers();
+  if (sysTab === "ssh") return loadSsh();
   msg("Yükleniyor…");
   let data;
   try {
@@ -35,6 +37,152 @@ async function loadTab() {
   else if (sysTab === "procs") renderProcs(data.items);
   else if (sysTab === "services") renderServices(data.items);
   $("systools-status").textContent = "Güncellendi · " + new Date().toLocaleTimeString("tr-TR");
+}
+
+// ---- Cron ----
+async function loadCron() {
+  msg("Yükleniyor…");
+  let data;
+  try { data = await api("sys/cron"); }
+  catch (e) { return msg("Hata: " + escapeHtml(e.message)); }
+  if (!data || !data.available)
+    return msg("Bu sunucuda kullanılamıyor (komut çalıştırma kapalı ya da FTP).");
+  const raw = data.raw || "";
+  $("systools-body").innerHTML = `
+    <div class="cron-help dk-sub">Her satır: <code>dk saat gün ay haftagünü komut</code> · ör. <code>0 3 * * * /yedek.sh</code> · <code>@reboot</code>, <code>@daily</code> de geçerli. Satır başına <code>#</code> ile yorum.</div>
+    <textarea id="cron-edit" class="cron-edit" spellcheck="false" placeholder="# Henüz cron görevi yok. Buraya ekleyebilirsin."></textarea>
+    <div class="cron-actions">
+      <button id="cron-save" class="btn btn-sm tbtn primary">Kaydet</button>
+      <span class="dk-sub">Kaydet, kullanıcının tüm crontab'ını bu içerikle değiştirir.</span>
+    </div>`;
+  $("cron-edit").value = raw;
+  $("cron-save").addEventListener("click", saveCron);
+  $("systools-status").textContent = (data.lines || []).filter((l) => !l.comment && !l.isEnv).length + " görev";
+}
+
+async function saveCron() {
+  const content = $("cron-edit").value;
+  showLoading(true);
+  try {
+    await api("sys/cron", { method: "POST", json: { content } });
+    toast("Crontab kaydedildi");
+    loadCron();
+  } catch (e) { toast(e.message, true); }
+  finally { showLoading(false); }
+}
+
+// ---- Kullanıcılar & sahiplik (chown) ----
+async function loadUsers() {
+  msg("Yükleniyor…");
+  let data;
+  try { data = await api("sys/users"); }
+  catch (e) { return msg("Hata: " + escapeHtml(e.message)); }
+  if (!data || !data.available)
+    return msg("Bu sunucuda kullanılamıyor (komut çalıştırma kapalı ya da FTP).");
+  const rows = data.items.map((u) => `<tr class="${u.system ? "usr-sys" : ""}">
+    <td><b>${escapeHtml(u.name)}</b>${u.uid === 0 ? ' <span class="usr-tag root">root</span>' : u.system ? ' <span class="usr-tag">sistem</span>' : ""}</td>
+    <td>${u.uid}</td>
+    <td>${u.gid}</td>
+    <td>${escapeHtml(u.home)}</td>
+    <td>${escapeHtml(u.shell)}${u.login ? "" : ' <span class="dk-sub">(girişsiz)</span>'}</td>
+  </tr>`).join("");
+  $("systools-body").innerHTML = `
+    <div class="chown-box">
+      <div class="chown-title">Sahiplik değiştir (chown)</div>
+      <div class="chown-row">
+        <input id="chown-path" class="lx-path" placeholder="Yol (ör. /var/www/site)" spellcheck="false" />
+        <input id="chown-owner" class="chown-in" placeholder="kullanıcı" spellcheck="false" />
+        <input id="chown-group" class="chown-in" placeholder="grup (ops.)" spellcheck="false" />
+        <label class="chown-rec"><input type="checkbox" id="chown-rec" /> -R</label>
+        <button id="chown-go" class="btn btn-sm tbtn primary">Uygula</button>
+      </div>
+    </div>
+    <table class="table sys-table">
+      <thead><tr><th>Kullanıcı</th><th>UID</th><th>GID</th><th>Ev</th><th>Kabuk</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  $("chown-go").addEventListener("click", doChown);
+  $("systools-status").textContent = data.items.filter((u) => !u.system).length + " normal kullanıcı";
+}
+
+async function doChown() {
+  const path = $("chown-path").value.trim();
+  const owner = $("chown-owner").value.trim();
+  const group = $("chown-group").value.trim();
+  const recursive = $("chown-rec").checked;
+  if (!path) return toast("Yol gerekli.", true);
+  if (!owner && !group) return toast("Kullanıcı ve/veya grup gir.", true);
+  showLoading(true);
+  try {
+    await api("sys/chown", { method: "POST", json: { path, owner, group, recursive } });
+    toast("Sahiplik güncellendi");
+  } catch (e) { toast(e.message, true); }
+  finally { showLoading(false); }
+}
+
+// ---- SSH anahtarları ----
+async function loadSsh() {
+  msg("Yükleniyor…");
+  let data;
+  try { data = await api("sys/sshkeys"); }
+  catch (e) { return msg("Hata: " + escapeHtml(e.message)); }
+  if (!data || !data.available)
+    return msg("Bu sunucuda kullanılamıyor (komut çalıştırma kapalı ya da FTP).");
+  const rows = data.items.length ? data.items.map((k) => `<tr>
+    <td>${escapeHtml(k.type)}</td>
+    <td class="ssh-fp">${escapeHtml(k.fingerprint)}</td>
+    <td>${escapeHtml(k.comment || "—")}</td>
+  </tr>`).join("") : `<tr><td colspan="3" class="dk-sub">authorized_keys boş.</td></tr>`;
+  $("systools-body").innerHTML = `
+    <div class="ssh-intro dk-sub">Parolasız bağlantı için sunucuda bir anahtar çifti üret; açık anahtar <code>authorized_keys</code>'e eklenir, özel anahtarı bağlantına kaydedersin.</div>
+    <div class="ssh-actions"><button id="ssh-gen" class="btn btn-sm tbtn primary">🔑 Anahtar üret & kur</button></div>
+    <div class="ssh-title">Yetkili anahtarlar (authorized_keys)</div>
+    <table class="table sys-table">
+      <thead><tr><th>Tip</th><th>Parmak izi</th><th>Yorum</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  $("ssh-gen").addEventListener("click", genSshKey);
+}
+
+async function genSshKey() {
+  if (!(await confirmDialog(
+    "Sunucuda ed25519 anahtar çifti üretilip authorized_keys'e eklenecek. Devam?",
+    { title: "SSH Anahtarı Kur", okText: "Üret & Kur" }
+  ))) return;
+  showLoading(true);
+  let r;
+  try { r = await api("sys/ssh-setup", { method: "POST", json: {} }); }
+  catch (e) { showLoading(false); return toast(e.message, true); }
+  showLoading(false);
+  showPrivateKey(r.privateKey || "");
+  loadSsh();
+}
+
+// Özel anahtarı kopyalanabilir bir kutuda göster
+function showPrivateKey(priv) {
+  const h = document.createElement("div");
+  h.className = "app-dialog-overlay";
+  h.innerHTML = `
+    <div class="app-dialog" role="dialog" aria-modal="true" style="max-width:560px">
+      <div class="app-dialog-title">🔑 Özel Anahtar Üretildi</div>
+      <div class="app-dialog-msg">Bu özel anahtarı kopyala ve bağlantını düzenlerken <b>Kimlik = Anahtar</b> alanına yapıştır. Anahtar yalnızca bir kez gösterilir.</div>
+      <textarea class="cron-edit" readonly style="height:180px;font-size:11px"></textarea>
+      <div class="app-dialog-actions">
+        <button type="button" class="ad-btn ad-copy">Kopyala</button>
+        <button type="button" class="ad-btn ad-ok primary">Tamam</button>
+      </div>
+    </div>`;
+  document.body.appendChild(h);
+  requestAnimationFrame(() => h.classList.add("show"));
+  const ta = h.querySelector("textarea");
+  ta.value = priv;
+  const close = () => { h.classList.remove("show"); setTimeout(() => h.remove(), 140); };
+  h.querySelector(".ad-ok").addEventListener("click", close);
+  h.querySelector(".ad-copy").addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(priv); toast("Kopyalandı"); }
+    catch (_) { ta.select(); document.execCommand("copy"); toast("Kopyalandı"); }
+  });
+  h.addEventListener("mousedown", (e) => { if (e.target === h) close(); });
 }
 
 function renderPorts(items) {

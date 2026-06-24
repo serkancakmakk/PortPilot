@@ -170,4 +170,165 @@ router.get("/api/sys/logtail", async (req, res) => {
   } catch (e) { res.json({ available: false, error: e.message }); }
 });
 
+// ---- Cron: kullanıcının crontab'ını oku ----
+router.get("/api/sys/cron", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return notSupported(res);
+  try {
+    const r = await runCmd(s, "crontab -l 2>/dev/null; echo \"##EXIT$?##\"");
+    // crontab -l boşsa çıkış kodu 1 olur ama bu "tablo yok" demektir, hata değil.
+    const text = r.out.replace(/##EXIT\d+##\s*$/, "");
+    const lines = text.split("\n").map((raw, i) => {
+      const line = raw.replace(/\r$/, "");
+      if (!line.trim()) return null;
+      const comment = line.trim().startsWith("#");
+      let schedule = "", command = "", isEnv = false;
+      if (!comment) {
+        const m = line.match(/^\s*(@\w+|(?:\S+\s+){5})(.*)$/);
+        if (m) { schedule = m[1].trim(); command = m[2].trim(); }
+        else { isEnv = true; command = line.trim(); } // VAR=deger satırı
+      }
+      return { i, raw: line, comment, schedule, command, isEnv };
+    }).filter(Boolean);
+    res.json({ available: true, raw: text, lines });
+  } catch (e) { res.json({ available: false, error: e.message }); }
+});
+
+// ---- Cron: crontab'ı kaydet (tüm içeriği değiştirir) ----
+router.post("/api/sys/cron", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return res.status(400).json({ error: "Bu bağlantıda kullanılamaz." });
+  let content = String(req.body.content || "");
+  if (content && !content.endsWith("\n")) content += "\n";
+  // Yeni satır/tırnak sorununu önlemek için base64 ile aktar.
+  const b64 = Buffer.from(content, "utf8").toString("base64");
+  try {
+    const r = await runCmd(s, `printf %s ${shQuote(b64)} | base64 -d | crontab - 2>&1`);
+    if (r.code !== 0) return res.status(400).json({ error: (r.out + r.err).trim() || "Crontab kaydedilemedi." });
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ---- Kullanıcılar (/etc/passwd) ----
+router.get("/api/sys/users", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return notSupported(res);
+  try {
+    const r = await runCmd(s, "getent passwd 2>/dev/null || cat /etc/passwd 2>/dev/null");
+    const items = r.out.split("\n").map((l) => {
+      const p = l.split(":");
+      if (p.length < 7) return null;
+      const uid = Number(p[2]);
+      return {
+        name: p[0], uid, gid: Number(p[3]), gecos: p[4] || "",
+        home: p[5] || "", shell: p[6] || "",
+        system: uid < 1000 && uid !== 0, // 0=root, <1000 sistem hesabı
+        login: !/(nologin|false)$/.test(p[6] || ""),
+      };
+    }).filter(Boolean);
+    items.sort((a, b) => a.uid - b.uid);
+    res.json({ available: true, items });
+  } catch (e) { res.json({ available: false, error: e.message }); }
+});
+
+// ---- Gruplar (/etc/group) ----
+router.get("/api/sys/groups", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return notSupported(res);
+  try {
+    const r = await runCmd(s, "getent group 2>/dev/null || cat /etc/group 2>/dev/null");
+    const items = r.out.split("\n").map((l) => {
+      const p = l.split(":");
+      if (p.length < 4) return null;
+      return { name: p[0], gid: Number(p[2]), members: (p[3] || "").split(",").filter(Boolean) };
+    }).filter(Boolean);
+    items.sort((a, b) => a.gid - b.gid);
+    res.json({ available: true, items });
+  } catch (e) { res.json({ available: false, error: e.message }); }
+});
+
+// ---- Sahiplik değiştir (chown) ----
+router.post("/api/sys/chown", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  const target = String(req.body.path || "").trim();
+  const owner = String(req.body.owner || "").trim();
+  const group = String(req.body.group || "").trim();
+  if (!target) return res.status(400).json({ error: "Yol gerekli." });
+  if (!owner && !group) return res.status(400).json({ error: "Sahip ve/veya grup gerekli." });
+  const ok = /^[\w.\-]+$/;
+  if (owner && !ok.test(owner)) return res.status(400).json({ error: "Geçersiz kullanıcı adı." });
+  if (group && !ok.test(group)) return res.status(400).json({ error: "Geçersiz grup adı." });
+  const spec = group ? `${owner}:${group}` : owner;
+  const rec = req.body.recursive ? "-R " : "";
+  try {
+    const r = await runCmd(s, `chown ${rec}-- ${shQuote(spec)} ${shQuote(target)} 2>&1`);
+    if (r.code !== 0) return res.status(400).json({ error: (r.out + r.err).trim() || "Sahiplik değiştirilemedi (root gerekebilir)." });
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ---- Kullanıcı ekle (useradd) ----
+router.post("/api/sys/useradd", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  const name = String(req.body.name || "").trim();
+  if (!/^[a-z_][a-z0-9_\-]{0,31}$/.test(name)) return res.status(400).json({ error: "Geçersiz kullanıcı adı." });
+  const home = req.body.createHome === false ? "-M" : "-m";
+  const grp = String(req.body.group || "").trim();
+  const grpArg = grp && /^[\w.\-]+$/.test(grp) ? ` -g ${shQuote(grp)}` : "";
+  try {
+    const r = await runCmd(s, `useradd ${home}${grpArg} ${shQuote(name)} 2>&1`);
+    if (r.code !== 0) return res.status(400).json({ error: (r.out + r.err).trim() || "Kullanıcı eklenemedi (root gerekebilir)." });
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ---- SSH: yetkili anahtarları listele ----
+router.get("/api/sys/sshkeys", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return notSupported(res);
+  try {
+    const r = await runCmd(s, "cat ~/.ssh/authorized_keys 2>/dev/null");
+    const items = r.out.split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#")).map((l) => {
+      const p = l.split(/\s+/);
+      // tip anahtar yorum  (yorum genelde son alan)
+      return { type: p[0] || "", comment: p.slice(2).join(" ") || "", fingerprint: (p[1] || "").slice(0, 16) + "…" };
+    });
+    res.json({ available: true, items });
+  } catch (e) { res.json({ available: false, error: e.message }); }
+});
+
+// ---- SSH: anahtar üret + authorized_keys'e kur (parolasız giriş) ----
+// Sunucuda ed25519 anahtar çifti üretir, açık anahtarı authorized_keys'e ekler ve
+// özel anahtarı döndürür → kullanıcı bağlantıya kaydedip parolasız bağlanır.
+router.post("/api/sys/ssh-setup", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return res.status(400).json({ error: "Bu bağlantıda kullanılamaz." });
+  const comment = String(req.body.comment || "portpilot").replace(/[^\w@.\-]/g, "") || "portpilot";
+  const kf = "~/.ssh/portpilot_ed25519";
+  const script = [
+    "set -e",
+    "mkdir -p ~/.ssh && chmod 700 ~/.ssh",
+    `[ -f ${kf} ] || ssh-keygen -t ed25519 -N '' -C ${shQuote(comment)} -f ${kf} >/dev/null`,
+    `touch ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys`,
+    `grep -qxF "$(cat ${kf}.pub)" ~/.ssh/authorized_keys || cat ${kf}.pub >> ~/.ssh/authorized_keys`,
+    `echo '##PRIV##'; cat ${kf}; echo '##PUB##'; cat ${kf}.pub`,
+  ].join("\n");
+  try {
+    const r = await runCmd(s, script + " 2>&1");
+    if (r.code !== 0 || !r.out.includes("##PRIV##"))
+      return res.status(400).json({ error: r.out.trim() || r.err.trim() || "Anahtar kurulamadı." });
+    const priv = (r.out.split("##PRIV##")[1] || "").split("##PUB##")[0].trim();
+    const pub = (r.out.split("##PUB##")[1] || "").trim();
+    res.json({ ok: true, privateKey: priv + "\n", publicKey: pub });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 module.exports = router;

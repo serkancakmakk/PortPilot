@@ -114,6 +114,31 @@
   --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 8px 24px rgba(16, 24, 40, .06);
 }
 
+/* ---- Karanlık tema ---- */
+:root.dark {
+  --bg: #0f1420;
+  --panel: #161c2a;
+  --panel-2: #1c2436;
+  --border: #2a3346;
+  --border-soft: #232c3e;
+  --accent: #3b82f6;
+  --accent-2: #60a5fa;
+  --accent-soft: #1e2a44;
+  --accent-soft-2: #243352;
+  --text: #e6eaf2;
+  --muted: #97a2b6;
+  --hover: #1f2840;
+  --danger: #f05563;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px rgba(0, 0, 0, .5);
+  color-scheme: dark;
+}
+/* Karanlıkta beyaz zemin varsayan birkaç noktayı değişkene bağla */
+:root.dark .app-dialog-input:focus,
+:root.dark .br-field input:focus { background: var(--panel-2); }
+:root.dark .ad-btn { background: var(--panel-2); }
+:root.dark .arc-fmt,
+:root.dark .br-tab { background: var(--panel-2); }
+
 body {
   font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, "Inter", sans-serif;
   background: var(--bg);
@@ -405,6 +430,9 @@ body {
 .srv-del { position:absolute; top:5px; right:6px; width:20px; height:20px; display:grid; place-items:center; border-radius:50%; background:rgba(0,0,0,.25); color:rgba(255,255,255,.9); font-size:15px; opacity:0; transition:opacity .12s,background .12s; }
 .srv-tile:hover .srv-del { opacity:1; }
 .srv-del:hover { background:var(--danger); color:#fff; }
+.srv-edit { position:absolute; top:5px; right:30px; width:20px; height:20px; display:grid; place-items:center; border-radius:50%; background:rgba(0,0,0,.25); color:rgba(255,255,255,.9); font-size:12px; opacity:0; transition:opacity .12s,background .12s; }
+.srv-tile:hover .srv-edit { opacity:1; }
+.srv-edit:hover { background:var(--accent); color:#fff; }
 .srv-tile.online::after { content:""; position:absolute; top:12px; right:14px; width:9px; height:9px; border-radius:50%; background:#22c55e; box-shadow:0 0 0 2px rgba(0,0,0,.3),0 0 8px #22c55e; }
 .save-check { display:flex; flex-direction:row !important; align-items:center; gap:9px; cursor:pointer; }
 .save-fields { display:flex; gap:8px; }
@@ -3310,3 +3338,54 @@ body.locked { overflow: hidden; }
 .br-err { color: var(--danger); padding: 10px; font-size: 13px; }
 .br-count { flex: 1; font-size: 12px; color: var(--muted); align-self: center; }
 .ad-btn:disabled { opacity: .5; cursor: not-allowed; }
+.dk-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ---- Cron editörü ---- */
+.cron-help { padding: 4px 2px 10px; }
+.cron-edit {
+  width: 100%; min-height: 220px; resize: vertical;
+  padding: 12px 14px; border: 1.5px solid var(--border); border-radius: 10px;
+  background: var(--panel-2); color: var(--text);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 13px; line-height: 1.6; outline: none;
+}
+.cron-edit:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.cron-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+
+/* ---- Kullanıcı / chown ---- */
+.chown-box { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; background: var(--panel-2); }
+.chown-title { font-weight: 600; font-size: 13px; margin-bottom: 8px; color: var(--text); }
+.chown-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.chown-row .lx-path { flex: 1; min-width: 200px; }
+.chown-in {
+  width: 120px; padding: 8px 11px; border: 1.5px solid var(--border); border-radius: 9px;
+  background: var(--panel); color: var(--text); font: inherit; font-size: 13px; outline: none;
+}
+.chown-in:focus { border-color: var(--accent); }
+.chown-rec { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text); }
+.usr-sys td { opacity: .62; }
+.usr-tag { font-size: 10px; background: var(--border); color: var(--muted); padding: 1px 6px; border-radius: 6px; font-weight: 600; }
+.usr-tag.root { background: var(--danger); color: #fff; }
+
+/* ---- SSH ---- */
+.ssh-intro { padding: 2px 2px 10px; }
+.ssh-actions { margin-bottom: 14px; }
+.ssh-title, .chown-title { color: var(--text); }
+.ssh-title { font-weight: 600; font-size: 13px; margin: 6px 0 8px; }
+.ssh-fp { font-family: monospace; color: var(--muted); }
+
+/* ---- Docker Compose ---- */
+.cmp-meta { padding: 2px 14px 8px; word-break: break-all; }
+.cmp-actions { padding: 0 14px 12px; flex-wrap: wrap; }
+
+/* ---- Bağlantı düzenleme ---- */
+.srv-edit-dialog { min-width: 460px; max-width: 540px; }
+.se-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.se-field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.se-field.se-wide { grid-column: 1 / -1; }
+.se-field input, .se-field select {
+  padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 10px;
+  background: var(--panel-2); color: var(--text); font: inherit; font-size: 14px; font-weight: 400; outline: none;
+}
+.se-field input:focus, .se-field select:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
+.se-note { margin-bottom: 14px; }
