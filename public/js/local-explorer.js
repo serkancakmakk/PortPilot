@@ -6,7 +6,7 @@ import { applyIcons, iconFor } from "./icons.js";
 import { cwd, session } from "./state.js";
 import { navigate } from "./explorer.js";
 import { askUploadOptions } from "./upload.js";
-import { rememberLocalPaths } from "./recent-local.js";
+import { rememberLocalPaths, renderRecentLocal } from "./recent-local.js";
 
 export const LOCAL_DT_TYPE = "application/x-portpilot-local";
 
@@ -16,15 +16,15 @@ function isDesktopApp() {
 
 let curPath = null;
 let curParent = null;
+let curEntries = [];                 // [{ abs, name, isDir }]
 let lxView = localStorage.getItem("lxView") || "list"; // "list" | "grid"
-const selected = new Set(); // seçili mutlak yollar
+const selected = new Map();          // abs → isDir
 
 function applyView() {
   const list = $("lx-list");
   if (list) list.classList.toggle("grid", lxView === "grid");
   const btn = $("lx-view");
   if (btn) {
-    // Liste görünümündeyken ızgaraya, ızgaradayken listeye geçiş ikonu göster
     btn.innerHTML = `<span class="nav-ico-wrap" data-icon="${lxView === "grid" ? "list" : "grid"}"></span>`;
     applyIcons(btn);
   }
@@ -35,11 +35,24 @@ function joinPath(dir, name) {
   return dir.endsWith(sep) ? dir + name : dir + sep + name;
 }
 
+// Seçimden hatırlanacak KLASÖRLERİ üretir: seçili klasörler + (dosya seçildiyse
+// içinde bulunulan klasör). Böylece tek tek dosyalar "son klasörler"i kirletmez.
+function foldersToRemember(items, dir) {
+  const set = new Set();
+  let anyFile = false;
+  for (const it of items) { if (it.isDir) set.add(it.path); else anyFile = true; }
+  if (anyFile && dir) set.add(dir);
+  return [...set];
+}
+
 export async function openLocalExplorer() {
   if (!isDesktopApp()) return false;
   const box = $("local-explorer");
   if (!box) return false;
   box.hidden = false;
+  // Kalabalığı azalt: gezgin açıkken "son klasörler" panelini gizle.
+  const rl = $("recent-local");
+  if (rl) rl.hidden = true;
   if (!curPath) {
     let home = "/";
     try { home = await window.desktop.homeDir(); } catch (_) {}
@@ -52,6 +65,7 @@ export async function openLocalExplorer() {
 function closeExplorer() {
   const box = $("local-explorer");
   if (box) box.hidden = true;
+  renderRecentLocal(); // paneli geri getir (içerik varsa)
 }
 
 async function listDir(dir) {
@@ -63,39 +77,41 @@ async function listDir(dir) {
   }
   curPath = r.path;
   curParent = r.parent;
+  curEntries = r.entries.map((e) => ({ abs: joinPath(curPath, e.name), name: e.name, isDir: e.isDir }));
   selected.clear();
   $("lx-path").value = curPath;
-  renderList(r.entries);
+  renderList();
   applyView();
   updateFoot();
 }
 
-function renderList(entries) {
+function renderList() {
   const listEl = $("lx-list");
   listEl.innerHTML = "";
-  if (!entries.length) {
+  if (!curEntries.length) {
     listEl.innerHTML = '<div class="lx-empty">Bu klasör boş.</div>';
     return;
   }
-  for (const ent of entries) {
-    const abs = joinPath(curPath, ent.name);
+  for (const ent of curEntries) {
+    const abs = ent.abs;
     const row = document.createElement("div");
-    row.className = "lx-item";
+    row.className = "lx-item" + (selected.has(abs) ? " sel" : "");
     row.draggable = true;
 
     const cb = document.createElement("input");
     cb.type = "checkbox";
     cb.className = "lx-check";
+    cb.checked = selected.has(abs);
     cb.addEventListener("click", (e) => e.stopPropagation());
     cb.addEventListener("change", () => {
-      if (cb.checked) selected.add(abs); else selected.delete(abs);
+      if (cb.checked) selected.set(abs, ent.isDir); else selected.delete(abs);
       row.classList.toggle("sel", cb.checked);
       updateFoot();
     });
 
     const ico = document.createElement("span");
     ico.className = "nav-ico-wrap";
-    ico.innerHTML = ent.isDir ? iconFor({ type: "dir", name: ent.name }) : iconFor({ type: "file", name: ent.name });
+    ico.innerHTML = iconFor({ type: ent.isDir ? "dir" : "file", name: ent.name });
 
     const nm = document.createElement("span");
     nm.className = "lx-name";
@@ -105,14 +121,16 @@ function renderList(entries) {
     row.appendChild(ico);
     row.appendChild(nm);
 
-    // Klasöre çift/tek tık → içine gir; dosyada → seç.
     row.addEventListener("dblclick", () => { if (ent.isDir) listDir(abs); });
     row.addEventListener("click", () => { cb.checked = !cb.checked; cb.dispatchEvent(new Event("change")); });
 
-    // Sürükle-bırak: yükleme alanına bırakılınca işlenecek yolu taşı.
+    // Sürükle-bırak: yolları ve hatırlanacak klasörleri taşı.
     row.addEventListener("dragstart", (e) => {
-      const paths = selected.size ? [...selected] : [abs];
-      e.dataTransfer.setData(LOCAL_DT_TYPE, JSON.stringify(paths));
+      const items = selected.size
+        ? [...selected].map(([p, isDir]) => ({ path: p, isDir }))
+        : [{ path: abs, isDir: ent.isDir }];
+      const payload = { paths: items.map((i) => i.path), folders: foldersToRemember(items, curPath) };
+      e.dataTransfer.setData(LOCAL_DT_TYPE, JSON.stringify(payload));
       e.dataTransfer.effectAllowed = "copy";
     });
 
@@ -120,26 +138,44 @@ function renderList(entries) {
   }
 }
 
+function allSelected() {
+  return curEntries.length > 0 && curEntries.every((e) => selected.has(e.abs));
+}
+
+function setSelectAll(on) {
+  selected.clear();
+  if (on) for (const e of curEntries) selected.set(e.abs, e.isDir);
+  renderList();
+  updateFoot();
+}
+
 function updateFoot() {
   const info = $("lx-info");
   const btn = $("lx-upload");
+  const cb = $("lx-selall-cb");
   const n = selected.size;
   if (info) info.textContent = n
     ? `${n} öğe seçili → ${cwd}`
     : "Klasörleri/dosyaları seç ya da yukarıdaki yükleme alanına sürükle.";
   if (btn) btn.disabled = !n;
+  if (cb) {
+    cb.disabled = !curEntries.length;
+    cb.checked = allSelected();
+    cb.indeterminate = n > 0 && !cb.checked; // bazıları seçili
+  }
 }
 
-// Seçili (ya da verilen) yerel yolları sunucudaki güncel dizine yükler; seçenek sorar.
-export async function uploadLocalPaths(paths) {
+// Verilen yolları sunucudaki güncel dizine yükler; seçenek sorar. rememberFolders
+// verilirse yalnızca onlar "son klasörler"e eklenir (dosyalar kirletmez).
+export async function uploadLocalPaths(paths, rememberFolders) {
   paths = (paths || []).filter(Boolean);
   if (!paths.length) return;
   const names = paths.map((p) => p.split(/[\\/]/).filter(Boolean).pop());
   const opts = await askUploadOptions([], `${paths.length} öğe (${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}) → ${cwd}`);
   if (!opts) return; // iptal
 
-  rememberLocalPaths(paths); // yüklenenleri son kullanılanlara da ekle
-  $("lx-info").textContent = "Yükleniyor…";
+  rememberLocalPaths(rememberFolders || []); // yalnızca klasörleri hatırla
+  if ($("lx-info")) $("lx-info").textContent = "Yükleniyor…";
   try {
     const res = await fetch("/api/upload-local", {
       method: "POST",
@@ -161,7 +197,7 @@ export async function uploadLocalPaths(paths) {
         const t = line.trim(); if (!t) continue;
         let o; try { o = JSON.parse(t); } catch (_) { continue; }
         if (o.total != null) total = o.total;
-        if (o.done != null && total) $("lx-info").textContent = `Yükleniyor… %${Math.round((o.done / total) * 100)}`;
+        if (o.done != null && total && $("lx-info")) $("lx-info").textContent = `Yükleniyor… %${Math.round((o.done / total) * 100)}`;
         if (o.ok || o.error) last = o;
       }
     }
@@ -181,6 +217,11 @@ export async function uploadLocalPaths(paths) {
   }
 }
 
+function uploadSelected() {
+  const items = [...selected].map(([p, isDir]) => ({ path: p, isDir }));
+  uploadLocalPaths(items.map((i) => i.path), foldersToRemember(items, curPath));
+}
+
 export function initLocalExplorer() {
   if (!$("local-explorer")) return;
   if ($("lx-close")) $("lx-close").addEventListener("click", closeExplorer);
@@ -193,7 +234,8 @@ export function initLocalExplorer() {
   const go = () => { const v = $("lx-path").value.trim(); if (v) listDir(v); };
   if ($("lx-go")) $("lx-go").addEventListener("click", go);
   if ($("lx-path")) $("lx-path").addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
-  if ($("lx-upload")) $("lx-upload").addEventListener("click", () => uploadLocalPaths([...selected]));
+  if ($("lx-selall-cb")) $("lx-selall-cb").addEventListener("change", (e) => setSelectAll(e.target.checked));
+  if ($("lx-upload")) $("lx-upload").addEventListener("click", uploadSelected);
   if ($("lx-view")) $("lx-view").addEventListener("click", () => {
     lxView = lxView === "grid" ? "list" : "grid";
     localStorage.setItem("lxView", lxView);

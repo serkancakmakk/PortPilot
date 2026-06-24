@@ -211,12 +211,15 @@ export function initDragDrop() {
     const dt = e.dataTransfer;
     if (!dt) return;
 
-    // Uygulama içi yerel gezginden sürüklenen öğeler (yol listesi taşır).
+    // Uygulama içi yerel gezginden sürüklenen öğeler ({ paths, folders } taşır).
     const localData = dt.getData && dt.getData(LOCAL_DT_TYPE);
     if (localData) {
-      let paths = [];
-      try { paths = JSON.parse(localData); } catch (_) {}
-      if (paths.length) import("./local-explorer.js").then((m) => m.uploadLocalPaths(paths));
+      let payload = null;
+      try { payload = JSON.parse(localData); } catch (_) {}
+      // Geriye dönük uyum: eski biçim düz dizi olabilir.
+      const paths = Array.isArray(payload) ? payload : (payload && payload.paths) || [];
+      const folders = (payload && payload.folders) || [];
+      if (paths.length) import("./local-explorer.js").then((m) => m.uploadLocalPaths(paths, folders));
       return;
     }
 

@@ -45,8 +45,23 @@ async function restoreSessions() {
 // API modülüne logout fonksiyonunu ver (döngüsel import önlemek için geç bağlama)
 setLogoutFn(logout);
 
+// Sürüm rozetini (".ver") gerçek sürümle güncelle — sabit "v1" kalmasın.
+async function applyVersionBadge() {
+  let v = "";
+  try {
+    if (window.desktop && window.desktop.version) v = await window.desktop.version();
+    if (!v) {
+      const r = await fetch("/api/version");
+      if (r.ok) v = (await r.json()).version || "";
+    }
+  } catch (_) {}
+  if (!v) return;
+  document.querySelectorAll(".ver").forEach((el) => { el.textContent = "v" + v; });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   applyIcons();
+  applyVersionBadge();
   initLogin();
   initEditor();
   initDocker();

@@ -8,6 +8,13 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// Sürüm bilgisi (tarayıcı modu için; masaüstünde window.desktop.version kullanılır)
+app.get("/api/version", (_req, res) => {
+  let version = "";
+  try { version = require("./package.json").version || ""; } catch (_) {}
+  res.json({ version });
+});
+
 // ---- Route modülleri ----
 app.use(require("./routes/connect"));
 app.use(require("./routes/files"));

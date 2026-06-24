@@ -9,6 +9,7 @@
     "email": "cakmakserkan07@gmail.com"
   },
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
     "start": "node server.js",
     "dev": "node --watch server.js",
     "app": "electron .",

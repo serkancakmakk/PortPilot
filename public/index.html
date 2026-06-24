@@ -239,18 +239,21 @@
       <!-- Uygulama içi yerel gezgin (Klasör Seç → masaüstünde açılır) -->
       <div id="local-explorer" class="local-explorer" hidden>
         <div class="lx-head">
-          <button type="button" id="lx-up" class="tbtn" title="Üst klasör"><span class="nav-ico-wrap" data-icon="arrow-up"></span></button>
-          <button type="button" id="lx-home" class="tbtn" title="Ev klasörü"><span class="nav-ico-wrap" data-icon="home"></span></button>
-          <button type="button" id="lx-refresh" class="tbtn" title="Yenile"><span class="nav-ico-wrap" data-icon="refresh"></span></button>
+          <button type="button" id="lx-up" class="btn btn-sm tbtn" title="Üst klasör"><span class="nav-ico-wrap" data-icon="arrow-up"></span></button>
+          <button type="button" id="lx-home" class="btn btn-sm tbtn" title="Ev klasörü"><span class="nav-ico-wrap" data-icon="home"></span></button>
+          <button type="button" id="lx-refresh" class="btn btn-sm tbtn" title="Yenile"><span class="nav-ico-wrap" data-icon="refresh"></span></button>
           <input type="text" id="lx-path" class="lx-path" placeholder="Yol yazıp Enter'a bas (ör. /Users/sen/Desktop)" spellcheck="false" />
-          <button type="button" id="lx-go" class="tbtn">Git</button>
-          <button type="button" id="lx-view" class="tbtn" title="Görünümü değiştir (ızgara / liste)"><span class="nav-ico-wrap" data-icon="grid"></span></button>
-          <button type="button" id="lx-close" class="tbtn" title="Gezgini kapat"><span class="nav-ico-wrap" data-icon="x"></span></button>
+          <button type="button" id="lx-go" class="btn btn-sm tbtn">Git</button>
+          <button type="button" id="lx-view" class="btn btn-sm tbtn" title="Görünümü değiştir (ızgara / liste)"><span class="nav-ico-wrap" data-icon="grid"></span></button>
+          <button type="button" id="lx-close" class="btn btn-sm tbtn" title="Gezgini kapat"><span class="nav-ico-wrap" data-icon="x"></span></button>
+        </div>
+        <div class="lx-subhead">
+          <label class="lx-selall"><input type="checkbox" id="lx-selall-cb" /> <span>Tümünü seç</span></label>
         </div>
         <div class="lx-list" id="lx-list"></div>
         <div class="lx-foot">
           <span class="lx-info" id="lx-info">Klasörleri/dosyaları seç ya da yukarıdaki yükleme alanına sürükle.</span>
-          <button type="button" id="lx-upload" class="tbtn primary" disabled><span class="nav-ico-wrap" data-icon="upload"></span> Seçilenleri Yükle</button>
+          <button type="button" id="lx-upload" class="btn btn-sm tbtn primary" disabled><span class="nav-ico-wrap" data-icon="upload"></span> Seçilenleri Yükle</button>
         </div>
       </div>
 
@@ -263,7 +266,7 @@
         </div>
         <div class="recent-local-add">
           <input type="text" id="recent-local-path" class="recent-local-input" placeholder="Yol yapıştır ve Ekle'ye bas (ör. /Users/sen/Desktop/proje)" spellcheck="false" />
-          <button type="button" id="recent-local-add-btn" class="tbtn">Ekle</button>
+          <button type="button" id="recent-local-add-btn" class="btn btn-sm tbtn">Ekle</button>
         </div>
         <div class="recent-local-list" id="recent-local-list"></div>
       </div>

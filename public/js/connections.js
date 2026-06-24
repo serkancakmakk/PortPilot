@@ -87,6 +87,7 @@ export function activateConn(id) {
   updateConnInfo(c.info);
   renderTabs();
   import("./sidebar.js").then((m) => { m.renderQuickLinks(); m.renderFavorites(); });
+  import("./recent-local.js").then((m) => m.renderRecentLocal()); // son klasörler host bazlı
   navigate(cwd, false);
   persistConns();
 }

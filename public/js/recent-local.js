@@ -3,46 +3,65 @@
 // window.desktop.getFilePath (webUtils) ile alıp localStorage'da saklarız.
 import { $, toast } from "./dom.js";
 import { applyIcons } from "./icons.js";
-import { cwd, session } from "./state.js";
+import { cwd, session, connections, activeConnId } from "./state.js";
 import { navigate } from "./explorer.js";
 
 const RECENT_LOCAL_KEY = "recentLocalFolders";
-const MAX_ITEMS = 8;
+const MAX_ITEMS = 8; // sunucu (host) başına
 
 function isDesktopApp() {
   return !!(window.desktop && window.desktop.isDesktop && window.desktop.getFilePath);
 }
 
-function loadRecentLocal() {
+// Son klasörler artık sunucu (host) bazlı: her bağlantının kendi listesi olur.
+function activeHost() {
+  const c = connections.find((x) => x.id === activeConnId);
+  return (c && c.info && c.info.host) || "";
+}
+
+// Tüm host'ların kayıtları (depolama biçimi: [{ host, path, name }]).
+function loadAll() {
   try {
-    return JSON.parse(localStorage.getItem(RECENT_LOCAL_KEY) || "[]");
+    const v = JSON.parse(localStorage.getItem(RECENT_LOCAL_KEY) || "[]");
+    return Array.isArray(v) ? v : [];
   } catch (_) {
     return [];
   }
 }
 
-function saveRecentLocal(list) {
-  const trimmed = list.slice(0, MAX_ITEMS);
+function saveAll(all) {
   // localStorage yalnızca anlık önbellek; kalıcı kaynak sunucudaki prefs.json
-  // (Electron her açılışta rastgele port seçtiğinden localStorage origin'i değişir
-  // ve liste kaybolur). Bu yüzden sunucuya da yazıyoruz.
-  try { localStorage.setItem(RECENT_LOCAL_KEY, JSON.stringify(trimmed)); } catch (_) {}
+  // (Electron her açılışta rastgele port seçtiğinden localStorage origin'i değişir).
+  try { localStorage.setItem(RECENT_LOCAL_KEY, JSON.stringify(all)); } catch (_) {}
   try {
     fetch("/api/prefs", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recentLocalFolders: trimmed }),
+      body: JSON.stringify({ recentLocalFolders: all }),
     }).catch(() => {});
   } catch (_) {}
 }
 
-// Mutlak bir yolu (en başa) listeye ekler.
+// Yalnızca aktif sunucuya ait kayıtlar.
+function currentList() {
+  const host = activeHost();
+  return loadAll().filter((it) => it.host === host);
+}
+
+// Mutlak bir yolu aktif sunucunun listesine (en başa) ekler.
 function addRecent(root) {
   if (!root) return;
+  const host = activeHost();
   const name = root.split(/[\\/]/).filter(Boolean).pop() || root;
-  const list = loadRecentLocal().filter((it) => it.path !== root);
-  list.unshift({ path: root, name });
-  saveRecentLocal(list);
+  let all = loadAll().filter((it) => !(it.host === host && it.path === root));
+  all.unshift({ host, path: root, name });
+  // Bu host'un kayıtlarını MAX_ITEMS ile sınırla (diğer host'lara dokunma).
+  const hostItems = all.filter((it) => it.host === host);
+  if (hostItems.length > MAX_ITEMS) {
+    const drop = new Set(hostItems.slice(MAX_ITEMS).map((x) => x.path));
+    all = all.filter((it) => !(it.host === host && drop.has(it.path)));
+  }
+  saveAll(all);
   renderRecentLocal();
 }
 
@@ -141,7 +160,13 @@ export function renderRecentLocal() {
     box.hidden = true;
     return;
   }
-  const list = loadRecentLocal();
+  // Uygulama içi gezgin açıkken kalabalık olmasın diye paneli gösterme.
+  const lx = $("local-explorer");
+  if (lx && !lx.hidden) {
+    box.hidden = true;
+    return;
+  }
+  const list = currentList();
   box.hidden = false;
   const clearBtn = $("recent-local-clear");
   if (clearBtn) clearBtn.hidden = !list.length;
@@ -217,13 +242,15 @@ async function loadFromServer() {
     const res = await fetch("/api/prefs");
     if (!res.ok) return;
     const data = await res.json();
-    const list = data && data.prefs && data.prefs.recentLocalFolders;
+    let list = data && data.prefs && data.prefs.recentLocalFolders;
     if (Array.isArray(list)) {
+      // Eski (host'suz) kayıtları geriye dönük uyumluluk için host alanıyla normalize et.
+      list = list.map((it) => (it && typeof it === "object" ? { host: it.host || "", path: it.path, name: it.name } : null)).filter(Boolean);
       try { localStorage.setItem(RECENT_LOCAL_KEY, JSON.stringify(list)); } catch (_) {}
       renderRecentLocal();
     } else {
-      const cached = loadRecentLocal();
-      if (cached.length) saveRecentLocal(cached); // önbellekteki eskileri taşı
+      const cached = loadAll();
+      if (cached.length) saveAll(cached); // önbellekteki eskileri sunucuya taşı
     }
   } catch (_) {}
 }
@@ -232,7 +259,9 @@ export function initRecentLocal() {
   const clear = $("recent-local-clear");
   if (clear) {
     clear.addEventListener("click", () => {
-      saveRecentLocal([]); // hem önbelleği hem sunucuyu temizle
+      // Yalnızca aktif sunucunun listesini temizle (diğer sunucular korunur).
+      const host = activeHost();
+      saveAll(loadAll().filter((it) => it.host !== host));
       renderRecentLocal();
     });
   }

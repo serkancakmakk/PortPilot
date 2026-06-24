@@ -621,7 +621,16 @@ body {
   background: var(--panel-2) !important;
   font-size: 13px;
   font-weight: 500;
+  /* Toolbar dışında da düzgün görünsün (padding/yuvarlaklık/imleç).
+     Toolbar içindekiler .toolbar button kuralıyla zaten override olur. */
+  padding: 7px 11px;
+  border-radius: 9px;
+  cursor: pointer;
+  color: var(--text);
+  transition: background .12s, border-color .12s, transform .08s;
 }
+.tbtn:active { transform: scale(.97); }
+.tbtn:disabled { opacity: .45; cursor: default; }
 
 .tbtn:hover {
   background: var(--hover) !important;
@@ -1030,6 +1039,24 @@ tr.dir .fname {
   color: var(--text, #111);
   background: var(--bg, #f8fafc);
 }
+.lx-subhead {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  background: var(--bg, #f8fafc);
+}
+.lx-selall {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted, #6b7280);
+  cursor: pointer;
+  user-select: none;
+}
+.lx-selall input { cursor: pointer; }
 .lx-list {
   max-height: 320px;
   overflow: auto;

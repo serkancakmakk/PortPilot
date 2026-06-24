@@ -1,0 +1,45 @@
+#!/bin/sh
+# Mesajında [release] geçen commit'lerde package.json (+ package-lock.json)
+# sürümünü otomatik artırır ve aynı commit'e dahil eder.
+# Böylece GitHub'daki sürüm (package.json'dan) her release commit'inde güncellenir.
+#
+# Kullanım:
+#   ... [release]          → yama (patch)  : 1.0.1 → 1.0.2
+#   ... [release minor]    → küçük (minor)  : 1.0.1 → 1.1.0
+#   ... [release major]    → büyük (major)  : 1.0.1 → 2.0.0
+
+msg_file="$1"
+msg="$(cat "$msg_file")"
+
+# [release] yoksa dokunma
+case "$msg" in
+  *"[release]"*|*"[release "*) : ;;
+  *) exit 0 ;;
+esac
+
+# Artış türünü belirle
+level="patch"
+case "$msg" in
+  *"[release major]"*) level="major" ;;
+  *"[release minor]"*) level="minor" ;;
+esac
+
+# Depo kökü
+root="$(git rev-parse --show-toplevel)"
+cd "$root" || exit 0
+
+old="$(node -p "require('./package.json').version" 2>/dev/null)"
+
+# Sürümü artır (git tag/commit oluşturmadan; sadece dosyaları günceller)
+if ! npm version "$level" --no-git-tag-version --allow-same-version >/dev/null 2>&1; then
+  echo "commit-msg: sürüm artırılamadı (npm version $level başarısız)" >&2
+  exit 0   # commit'i engelleme
+fi
+
+new="$(node -p "require('./package.json').version" 2>/dev/null)"
+
+# Güncellenen dosyaları bu commit'e ekle
+git add package.json package-lock.json 2>/dev/null
+
+echo "commit-msg: sürüm $old → $new ($level)"
+exit 0
