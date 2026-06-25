@@ -8,6 +8,15 @@
     "name": "Serkan",
     "email": "cakmakserkan07@gmail.com"
   },
+  "license": "MIT",
+  "homepage": "https://github.com/serkancakmakk/PortPilot#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/serkancakmakk/PortPilot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/serkancakmakk/PortPilot/issues"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
