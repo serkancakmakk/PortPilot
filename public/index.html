@@ -163,28 +163,29 @@
     <!-- Sol kenar çubuğu -->
     <aside class="sidebar">
       <div class="brand"><img src="logo.png" class="brand-img sm" alt="" /> PortPilot <span class="ver">v1</span></div>
-      <div class="side-label">Hızlı Erişim</div>
+      <div class="side-label" data-i18n="side.quickAccess">Hızlı Erişim</div>
       <nav class="quick" id="quick-links"></nav>
 
       <div id="favorites-wrap" hidden>
-        <div class="side-label" style="margin-top:14px">Sık Kullanılanlar</div>
+        <div class="side-label" style="margin-top:14px" data-i18n="side.favorites">Sık Kullanılanlar</div>
         <nav class="quick" id="favorites"></nav>
       </div>
 
-      <div class="side-label" style="margin-top:14px">Araçlar</div>
+      <div class="side-label" style="margin-top:14px" data-i18n="side.tools">Araçlar</div>
       <nav class="quick">
-        <a id="btn-dashboard"><span class="q-ico" data-icon="gauge"></span> Sunucu Paneli</a>
-        <a id="btn-terminal"><span class="q-ico" data-icon="terminal"></span> Sunucu Terminali</a>
-        <a id="btn-docker"><span class="q-ico" data-icon="container"></span> Docker Yönetimi</a>
-        <a id="btn-systools"><span class="q-ico" data-icon="activity"></span> Sunucu Araçları</a>
-        <a id="btn-audit"><span class="q-ico">📜</span> İşlem Günlüğü</a>
-        <a id="btn-whatsnew"><span class="q-ico" data-icon="gauge"></span> Sürüm Notları</a>
+        <a id="btn-dashboard"><span class="q-ico" data-icon="gauge"></span> <span data-i18n="nav.dashboard">Sunucu Paneli</span></a>
+        <a id="btn-terminal"><span class="q-ico" data-icon="terminal"></span> <span data-i18n="nav.terminal">Sunucu Terminali</span></a>
+        <a id="btn-docker"><span class="q-ico" data-icon="container"></span> <span data-i18n="nav.docker">Docker Yönetimi</span></a>
+        <a id="btn-systools"><span class="q-ico" data-icon="activity"></span> <span data-i18n="nav.serverTools">Sunucu Araçları</span></a>
+        <a id="btn-audit"><span class="q-ico">📜</span> <span data-i18n="nav.audit">İşlem Günlüğü</span></a>
+        <a id="btn-whatsnew"><span class="q-ico" data-icon="gauge"></span> <span data-i18n="nav.whatsnew">Sürüm Notları</span></a>
         <a id="btn-theme"><span class="q-ico theme-ico">🌙</span> <span class="theme-label">Karanlık Tema</span></a>
-        <a id="btn-update" hidden><span class="q-ico" data-icon="refresh"></span> Güncellemeleri Denetle<span class="upd-dot" hidden></span></a>
+        <a id="btn-lang"><span class="q-ico lang-ico">🇬🇧</span> <span class="lang-label">English</span></a>
+        <a id="btn-update" hidden><span class="q-ico" data-icon="refresh"></span> <span data-i18n="nav.update">Güncellemeleri Denetle</span><span class="upd-dot" hidden></span></a>
       </nav>
 
       <div class="side-disk" id="side-disk"></div>
-      <button id="btn-disconnect" class="side-disconnect"><span class="nav-ico-wrap" data-icon="logout"></span> Bağlantıyı Kes</button>
+      <button id="btn-disconnect" class="side-disconnect"><span class="nav-ico-wrap" data-icon="logout"></span> <span data-i18n="nav.disconnect">Bağlantıyı Kes</span></button>
     </aside>
 
     <!-- Küçük ekranda sidebar açıkken arka plan -->
@@ -203,14 +204,14 @@
       </div>
       <button id="btn-fav" class="btn tbtn-star" title="Bu klasörü sık kullanılanlara ekle"><span class="nav-ico-wrap" data-icon="star"></span></button>
       <div class="breadcrumb" id="breadcrumb"></div>
-      <input type="search" id="file-search" class="form-control form-control-sm file-search" placeholder="Bu klasörde ara…" autocomplete="off" />
-      <button id="btn-hidden" class="btn btn-sm tbtn" title="Gizli dosyaları (.ile başlayan) göster/gizle"><span class="nav-ico-wrap" data-icon="eye"></span> <span class="btn-label">Gizli</span></button>
-      <button id="btn-view" class="btn btn-sm tbtn" title="Görünümü değiştir (simge / liste)"><span class="nav-ico-wrap" data-icon="grid"></span> <span class="btn-label">Görünüm</span></button>
+      <input type="search" id="file-search" class="form-control form-control-sm file-search" placeholder="Bu klasörde ara…" data-i18n-ph="tb.search" autocomplete="off" />
+      <button id="btn-hidden" class="btn btn-sm tbtn" title="Gizli dosyaları (.ile başlayan) göster/gizle"><span class="nav-ico-wrap" data-icon="eye"></span> <span class="btn-label" data-i18n="tb.hidden">Gizli</span></button>
+      <button id="btn-view" class="btn btn-sm tbtn" title="Görünümü değiştir (simge / liste)"><span class="nav-ico-wrap" data-icon="grid"></span> <span class="btn-label" data-i18n="tb.view">Görünüm</span></button>
       <button id="btn-split" class="btn btn-sm tbtn" title="Çift panel: ikinci sunucuyu yan yana aç, aralarında aktar"><span class="split-ico">▥</span> <span class="btn-label">Çift Panel</span></button>
-      <button id="btn-newfolder" class="btn btn-sm tbtn" title="Yeni klasör oluştur"><span class="nav-ico-wrap" data-icon="folder-plus"></span> <span class="btn-label">Yeni Klasör</span></button>
-      <button id="btn-download" class="btn btn-sm tbtn" title="Seçili dosya/klasörü bilgisayarına indir"><span class="nav-ico-wrap" data-icon="download"></span> <span class="btn-label">İndir</span></button>
-      <button id="btn-upload" class="btn btn-sm tbtn primary" title="Dosya yükle"><span class="nav-ico-wrap" data-icon="upload"></span> <span class="btn-label">Yükle</span></button>
-      <button id="btn-upload-folder" class="btn btn-sm tbtn" title="Tüm klasörü (alt klasörlerle) yükle"><span class="nav-ico-wrap" data-icon="folder-plus"></span> <span class="btn-label">Klasör Yükle</span></button>
+      <button id="btn-newfolder" class="btn btn-sm tbtn" title="Yeni klasör oluştur"><span class="nav-ico-wrap" data-icon="folder-plus"></span> <span class="btn-label" data-i18n="tb.newFolder">Yeni Klasör</span></button>
+      <button id="btn-download" class="btn btn-sm tbtn" title="Seçili dosya/klasörü bilgisayarına indir"><span class="nav-ico-wrap" data-icon="download"></span> <span class="btn-label" data-i18n="tb.download">İndir</span></button>
+      <button id="btn-upload" class="btn btn-sm tbtn primary" title="Dosya yükle"><span class="nav-ico-wrap" data-icon="upload"></span> <span class="btn-label" data-i18n="tb.upload">Yükle</span></button>
+      <button id="btn-upload-folder" class="btn btn-sm tbtn" title="Tüm klasörü (alt klasörlerle) yükle"><span class="nav-ico-wrap" data-icon="folder-plus"></span> <span class="btn-label" data-i18n="tb.uploadFolder">Klasör Yükle</span></button>
       <input type="file" id="file-input" multiple hidden />
       <input type="file" id="folder-input" webkitdirectory directory multiple hidden />
       <span class="conn-info" id="conn-info"></span>
@@ -219,11 +220,11 @@
     <!-- Sunucu paneli (açılış sayfası — modal değil, ana bölümde) -->
     <div id="dash-view" class="dash-view" hidden>
       <div class="editor-head">
-        <span class="editor-title"><span class="nav-ico-wrap" data-icon="gauge"></span> Sunucu Paneli</span>
+        <span class="editor-title"><span class="nav-ico-wrap" data-icon="gauge"></span> <span data-i18n="panel.dashboard">Sunucu Paneli</span></span>
         <span class="editor-status" id="dash-status"></span>
         <div class="spacer"></div>
-        <button id="dash-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> Yenile</button>
-        <button id="dash-files" class="ed-btn primary"><span class="nav-ico-wrap" data-icon="folder"></span> Dosyalar</button>
+        <button id="dash-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> <span data-i18n="common.refresh">Yenile</span></button>
+        <button id="dash-files" class="ed-btn primary"><span class="nav-ico-wrap" data-icon="folder"></span> <span data-i18n="common.files">Dosyalar</span></button>
       </div>
       <div class="dash-body" id="dash-body"></div>
     </div>
@@ -356,21 +357,22 @@
   <div id="systools-panel" class="editor-overlay" hidden>
     <div class="docker-box">
       <div class="editor-head">
-        <span class="editor-title"><span class="nav-ico-wrap" data-icon="activity"></span> Sunucu Araçları</span>
+        <span class="editor-title"><span class="nav-ico-wrap" data-icon="activity"></span> <span data-i18n="panel.serverTools">Sunucu Araçları</span></span>
         <div class="docker-tabs">
-          <button class="dk-tab active" data-systab="ports">Açık Portlar</button>
-          <button class="dk-tab" data-systab="procs">Süreçler</button>
-          <button class="dk-tab" data-systab="services">Servisler</button>
-          <button class="dk-tab" data-systab="cron">⏰ Cron</button>
-          <button class="dk-tab" data-systab="users">👥 Kullanıcılar</button>
-          <button class="dk-tab" data-systab="ssh">🔑 SSH</button>
-          <button class="dk-tab" data-systab="diskusage">Disk Analizi</button>
-          <button class="dk-tab" data-systab="log">Log</button>
+          <button class="dk-tab active" data-systab="ports" data-i18n="sys.tab.ports">Açık Portlar</button>
+          <button class="dk-tab" data-systab="procs" data-i18n="sys.tab.procs">Süreçler</button>
+          <button class="dk-tab" data-systab="services" data-i18n="sys.tab.services">Servisler</button>
+          <button class="dk-tab" data-systab="cron" data-i18n="sys.tab.cron">⏰ Cron</button>
+          <button class="dk-tab" data-systab="users" data-i18n="sys.tab.users">👥 Kullanıcılar</button>
+          <button class="dk-tab" data-systab="ssh" data-i18n="sys.tab.ssh">🔑 SSH</button>
+          <button class="dk-tab" data-systab="tunnel" data-i18n="sys.tab.tunnel">🚇 Tünel</button>
+          <button class="dk-tab" data-systab="diskusage" data-i18n="sys.tab.diskusage">Disk Analizi</button>
+          <button class="dk-tab" data-systab="log" data-i18n="sys.tab.log">Log</button>
         </div>
         <span class="editor-status" id="systools-status"></span>
         <div class="spacer"></div>
-        <button id="systools-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> Yenile</button>
-        <button id="systools-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
+        <button id="systools-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> <span data-i18n="common.refresh">Yenile</span></button>
+        <button id="systools-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> <span data-i18n="common.close">Kapat</span></button>
       </div>
       <div class="docker-body" id="systools-body"></div>
     </div>

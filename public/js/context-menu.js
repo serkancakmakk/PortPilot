@@ -27,6 +27,9 @@ export function showContextMenu(e, item) {
       actions.push({ label: "👁 Önizle", fn: () => import("./preview.js").then((m) => m.previewFile(item, full)) });
     if (isEditable(item.name))
       actions.push({ label: "📝 Düzenle", fn: () => import("./editor.js").then((m) => m.editFile(item, full)) });
+    // Masaüstünde: dış uygulamada aç + kaydedince otomatik geri yükle
+    if (window.desktop && window.desktop.editStart)
+      actions.push({ label: "🖊 Dış uygulamada düzenle", fn: () => import("./edit-external.js").then((m) => m.openExternalEdit(full)) });
     actions.push({ label: "⬇ İndir", fn: () => downloadFile(full) });
     if (ARCHIVE_EXT.test(item.name))
       actions.push({ label: "📦 Buraya çıkar", fn: () => import("./archive.js").then((m) => m.extractArchive(item, full)) });

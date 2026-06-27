@@ -24,6 +24,16 @@ contextBridge.exposeInMainWorld("desktop", {
   // Biyometrik (macOS Touch ID) — uygulama kilidi için
   biometricAvailable: () => ipcRenderer.invoke("lock:biometric-available"),
   biometricPrompt: (reason) => ipcRenderer.invoke("lock:biometric-prompt", reason),
+  // Dış uygulamada düzenle → otomatik geri yükle
+  // editStart({url,name}) → {ok,id,localPath}; her kayıtta onEditChange tetiklenir.
+  editStart: (opts) => ipcRenderer.invoke("edit:start", opts),
+  editStop: (id) => ipcRenderer.invoke("edit:stop", id),
+  editStopAll: () => ipcRenderer.invoke("edit:stopAll"),
+  onEditChange: (cb) => {
+    const handler = (_e, payload) => cb(payload);
+    ipcRenderer.on("edit:change", handler);
+    return () => ipcRenderer.removeListener("edit:change", handler);
+  },
   // Güncelleme olaylarını dinle (available/downloading/downloaded/latest/error)
   onUpdate: (cb) => {
     const handler = (_e, payload) => cb(payload);

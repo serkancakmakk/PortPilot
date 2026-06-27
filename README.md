@@ -76,6 +76,7 @@ Bağlantılar ve dosya işlemleri zaman damgalı kayıt.
 - **Kopyala / Kes / Yapıştır**, yeni klasör, yeniden adlandırma / taşıma, özyinelemeli silme (ilerleme çubuğu)
 - **İzinler (chmod)** ve **Özellikler** paneli (sahip/grup, sekizlik+simgesel izin, özyinelemeli boyut)
 - **Önizleme:** resim ve PDF'i indirmeden pencerede gör · **yerleşik metin düzenleyici** (`Ctrl/Cmd+S`)
+- **Dış uygulamada düzenle (masaüstü):** dosyayı varsayılan uygulamada (VS Code/Sublime/Preview…) aç → **her kaydedişte otomatik sunucuya geri yüklenir** (FileZilla tarzı)
 - **Sunucudan sunucuya aktarım** ve **çift panel (split-pane):** iki sunucuyu — ya da **bu bilgisayarı (yerel ↔ sunucu, masaüstünde)** — yan yana açıp aralarında aktar
 - Sol kenar çubuğunda **sık kullanılanlar**, hızlı erişim ve **disk kullanım** göstergesi
 
@@ -88,7 +89,9 @@ Bağlantılar ve dosya işlemleri zaman damgalı kayıt.
 ### 🧰 Sunucu araçları (yalnızca SFTP/SSH)
 - **Açık portlar** (dinleyen TCP/UDP + süreç), **süreçler** (en çok CPU + sonlandır), **systemd servisleri** (başlat/durdur/yeniden)
 - **Disk analizi** (`du` ile klasör bazında, oran çubuğu), **log kuyruğu** (tail)
-- **Cron yönetimi** (crontab oku/düzenle/kaydet), **kullanıcı & grup** listesi + **chown**
+- **Cron yönetimi** (crontab oku/düzenle/kaydet) + **sunucudaki tüm cron'ları tara** (`/etc/crontab`, `cron.d`, diğer kullanıcılar, periyodik betikler, **systemd timer**'ları — okunaklı zamanlama açıklamasıyla)
+- **SSH tüneli** (yerel port yönlendirme): sunucu ağındaki bir servisi `localhost:port`'a güvenle taşı — DB/dahili panel için tek tıkla tünel, canlı trafik göstergesi
+- **kullanıcı & grup** listesi + **chown**
 - **SSH anahtarı üret & kur** (ed25519 → `authorized_keys`, parolasız bağlantı için özel anahtarı verir)
 
 ### 🔐 Bağlantı & güvenlik
@@ -96,11 +99,14 @@ Bağlantılar ve dosya işlemleri zaman damgalı kayıt.
 - **Kayıtlı sunucular:** kaydet, gruplara ayır, tek tıkla bağlan; **✎ ile düzenle** (silmeden host/port/kullanıcı güncelle)
 - **Şifreli saklama:** parola/anahtar, işletim sistemi anahtarlığıyla (Electron `safeStorage`) şifrelenir — `servers.json` düz metin parola tutmaz
 - **Uygulama kilidi:** master parola (scrypt + tuz), otomatik kilit, macOS'ta **Touch ID**
+- **Oturum dayanıklılığı:** SFTP/SSH koparsa şeffaf **otomatik yeniden bağlanma**; kimlik bilgileri yalnızca bellekte **AES-256-GCM** ile şifreli (keep-alive + oto-reconnect)
 - **İşlem günlüğü (audit):** bağlantılar ve dosya işlemleri (sil/taşı/kopyala/yeniden adlandır/arşiv/aktar) zaman damgalı kayıt
 - Boşta kalan oturum otomatik kapanır
 
 ### 🎨 Deneyim
 - **Karanlık / aydınlık tema** (kalıcı, sistem tercihine uyar)
+- **Dil seçeneği (Türkçe / English)** — kalıcı, ilk açılışta tarayıcı diline uyar
+- **Sunucu paneli:** CPU / RAM / disk için canlı **sparkline geçmiş grafikleri** + **%90 eşik bildirimleri** (masaüstü)
 - Çoklu sunucu **sekmeleri**, "Neler yeni?" sürüm notları, gerçek zamanlı sürüm rozeti
 
 ---

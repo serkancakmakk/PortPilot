@@ -9,6 +9,8 @@
 
 **Sunucu araçları — yeni**
 - ⏰ **Cron yönetimi:** "Sunucu Araçları → Cron" ile kullanıcının `crontab`'ını doğrudan düzenle ve kaydet.
+- 🗄️ **Sunucudaki tüm cron'lar:** Cron sekmesinde, düzenlenebilir kullanıcı crontab'ının altında sunucuda **hâlihazırda bulunan** tüm zamanlanmış görevler listelenir — `/etc/crontab`, `/etc/cron.d/*`, diğer kullanıcıların crontab'ları, `cron.{hourly,daily,weekly,monthly}` betikleri ve **systemd timer'ları**. Her görev için okunaklı zamanlama açıklaması (ör. "her gün 03:00") gösterilir. (Sistem cron'ları için root yetkisi gerekir.)
+- 🚇 **SSH tüneli (yerel port yönlendirme):** "Sunucu Araçları → Tünel" ile sunucu ağındaki bir servisi (veritabanı, dahili panel…) tek tıkla **bu bilgisayara** taşı: `localhost:yerel` → SSH oturumu üzerinden → `uzak:port`. Yerel port otomatik seçilebilir; PostgreSQL/MySQL/Redis/MongoDB için hızlı kısayollar; açık tüneller canlı bağlantı sayısı ve trafik (↑/↓) ile listelenir, tek tıkla `localhost:port` kopyalanır. Bağlantı kapanınca/oturum zaman aşımında tüneller otomatik kapanır. (Yalnızca SFTP/SSH.)
 - 👥 **Kullanıcı & grup + sahiplik:** "Kullanıcılar" sekmesinde sistem kullanıcılarını listele; **chown** kutusuyla bir yolun sahibini/grubunu (gerekirse `-R`) değiştir.
 - 🐳 **Docker Compose:** "Docker → Compose" sekmesinde compose projelerini (stack) çalışan/toplam sayısıyla gör; **up / down / restart / stop / pull** ile yönet.
 
@@ -20,6 +22,10 @@
 
 **Deneyim — yeni**
 - 🌗 **Karanlık / aydınlık tema:** Sidebar → "Karanlık Tema" ile geçiş; seçim hatırlanır, ilk açılışta sistem tercihine uyar.
+- 🌍 **Dil seçeneği (Türkçe / English):** Sidebar → bayrak düğmesiyle arayüz dilini değiştir; seçim hatırlanır, ilk açılışta tarayıcı diline uyar. Çekirdek arayüz (kenar çubuğu, araç çubuğu, paneller, sekmeler, sunucu paneli, tünel & cron) iki dilde.
+- 📈 **Sunucu paneli — canlı grafikler & uyarılar:** CPU / RAM / disk kartlarında son ~5 dakikanın **sparkline geçmişi**; bir metrik **%90**'ı aşınca masaüstü bildirimi (histerezisli, 5 dk'da bir tekrar).
+- 🖊 **Dış uygulamada düzenle → otomatik geri yükle (masaüstü):** Bir dosyaya sağ tık → "Dış uygulamada düzenle" ile dosyayı işletim sisteminin varsayılan uygulamasında (VS Code, Sublime, Preview…) aç; **her kaydedişte otomatik olarak sunucuya geri yüklenir** (FileZilla tarzı). Her dosya türü desteklenir.
+- 🔌 **Oturum dayanıklılığı (oto-reconnect):** SFTP/SSH bağlantısı koparsa (ağ değişimi, sunucu yeniden başlatma) bir sonraki işlemde **şeffaf şekilde yeniden bağlanılır**; kimlik bilgileri yalnızca bellekte ve **AES-256-GCM** ile şifreli tutulur. Dosya işlemleri, Docker, Sunucu Araçları ve tüneller kopmaya dayanır.
 
 **Dosya yönetimi**
 - 💾 **İndirirken "Nereye kaydedeyim?":** Masaüstü uygulamasında dosya/klasör indirirken sistem **Kaydet** penceresi açılır; istediğin klasörü seçersin ve son seçtiğin konum sonraki indirme için hatırlanır.

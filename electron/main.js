@@ -285,6 +285,83 @@ ipcMain.handle("fs:download", async (_e, { url, dir, name }) => {
   }
 });
 
+// ---- Dış uygulamada düzenle → otomatik geri yükle ----
+// Uzak dosyayı geçici bir yerel yola indirir, işletim sisteminin varsayılan
+// uygulamasında açar ve dosyayı izler; her kayıtta renderer'a haber verir
+// (renderer dosyayı upload-local ile sunucuya geri yükler).
+const activeEdits = new Map(); // id -> { watcher, dir, localPath, timer, lastMtime }
+let editSeq = 0;
+
+function editTempDir() {
+  const d = path.join(app.getPath("userData"), "edits");
+  fs.mkdirSync(d, { recursive: true });
+  return d;
+}
+
+ipcMain.handle("edit:start", async (_e, { url, name }) => {
+  try {
+    if (!url || !name) return { ok: false, error: "Eksik parametre." };
+    const id = "e" + (++editSeq) + Date.now().toString(36);
+    const dir = path.join(editTempDir(), id);
+    fs.mkdirSync(dir, { recursive: true });
+    const safe = String(name).replace(/[\\/]/g, "_") || "dosya";
+    const localPath = path.join(dir, safe);
+
+    // İndir
+    const res = await fetch(url);
+    if (!res.ok || !res.body) return { ok: false, error: "HTTP " + res.status };
+    const { Readable } = require("stream");
+    const ws = fs.createWriteStream(localPath);
+    await new Promise((resolve, reject) => {
+      Readable.fromWeb(res.body).pipe(ws).on("finish", resolve).on("error", reject);
+    });
+
+    // Varsayılan uygulamada aç
+    try { await shell.openPath(localPath); } catch (_) {}
+
+    // İzle: değişiklik olunca (debounce) renderer'a bildir
+    let lastMtime = 0;
+    try { lastMtime = fs.statSync(localPath).mtimeMs; } catch (_) {}
+    const entry = { watcher: null, dir, localPath, timer: null, lastMtime };
+    const notify = () => {
+      clearTimeout(entry.timer);
+      entry.timer = setTimeout(() => {
+        let m = 0;
+        try { m = fs.statSync(localPath).mtimeMs; } catch (_) { return; }
+        if (m === entry.lastMtime) return; // gerçek değişiklik yoksa atla
+        entry.lastMtime = m;
+        if (mainWindow && !mainWindow.isDestroyed())
+          mainWindow.webContents.send("edit:change", { id, localPath });
+      }, 400);
+    };
+    try {
+      entry.watcher = fs.watch(localPath, { persistent: false }, notify);
+      // Bazı editörler dosyayı atomik değiştirir (rename) → klasörü de izle
+      entry.dirWatcher = fs.watch(dir, { persistent: false }, (_ev, fn) => {
+        if (!fn || fn === safe) notify();
+      });
+    } catch (_) {}
+    activeEdits.set(id, entry);
+    return { ok: true, id, localPath };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+function stopEdit(id, removeFiles) {
+  const e = activeEdits.get(id);
+  if (!e) return;
+  try { e.watcher && e.watcher.close(); } catch (_) {}
+  try { e.dirWatcher && e.dirWatcher.close(); } catch (_) {}
+  clearTimeout(e.timer);
+  activeEdits.delete(id);
+  if (removeFiles) { try { fs.rmSync(e.dir, { recursive: true, force: true }); } catch (_) {} }
+}
+
+ipcMain.handle("edit:stop", (_e, id) => { stopEdit(id, true); return { ok: true }; });
+ipcMain.handle("edit:stopAll", () => { for (const id of [...activeEdits.keys()]) stopEdit(id, true); return { ok: true }; });
+app.on("before-quit", () => { for (const id of [...activeEdits.keys()]) stopEdit(id, true); });
+
 // Güncelleme denetle: paketliyse electron-updater, değilse GitHub API bilgisi
 ipcMain.handle("app:check-update", async (_e, opts) => {
   const silent = !!(opts && opts.silent);

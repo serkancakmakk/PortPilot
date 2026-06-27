@@ -8,13 +8,15 @@ const router = express.Router();
 function dockerExec(s, cmd, cb) {
   if (!hasExec(s))
     return cb(new Error("Bu protokolde (FTP) komut çalıştırılamaz."));
-  s.fs.exec.exec(cmd, (err, stream) => {
+  const run = (conn) => conn.exec(cmd, (err, stream) => {
     if (err) return cb(err);
     let out = "", errout = "";
     stream.on("data", (d) => { out += d; });
     stream.stderr.on("data", (d) => { errout += d; });
     stream.on("close", (code) => cb(null, { code, out, errout }));
   });
+  // Bağlantı koptuysa şeffaf yeniden bağlan, sonra çalıştır
+  (s.fs.ensureLive ? s.fs.ensureLive() : Promise.resolve(s.fs.exec)).then(run).catch(cb);
 }
 
 function dockerUnavailable(r) {

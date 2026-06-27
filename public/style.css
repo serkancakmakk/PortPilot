@@ -2838,6 +2838,13 @@ tr.dir .fname {
   transition: width .4s ease;
 }
 
+.dash-spark {
+  display: block;
+  width: 100%;
+  height: 34px;
+  margin: 0 0 8px;
+}
+
 .dash-card-foot {
   display: flex;
   justify-content: space-between;
@@ -3351,6 +3358,79 @@ body.locked { overflow: hidden; }
 }
 .cron-edit:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-soft); }
 .cron-actions { display: flex; align-items: center; gap: 12px; margin-top: 10px; }
+
+/* ---- Sunucudaki tüm cron'lar (salt-okunur tarama) ---- */
+.cron-all-head {
+  display: flex; align-items: center; gap: 12px;
+  margin: 22px 0 10px; padding-top: 16px; border-top: 1px solid var(--border);
+}
+.cron-all-title { font-weight: 600; font-size: 14px; }
+.cron-all-sum { margin-bottom: 12px; }
+.cron-grp { margin-bottom: 16px; }
+.cron-grp-h {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 600; font-size: 12.5px; margin-bottom: 6px;
+}
+.cron-grp-n {
+  margin-left: auto; background: var(--accent-soft); color: var(--accent);
+  border-radius: 999px; padding: 1px 9px; font-size: 11px; font-weight: 700;
+}
+.cron-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cron-tbl th {
+  text-align: left; font-weight: 600; color: var(--muted);
+  padding: 5px 10px; border-bottom: 1px solid var(--border); font-size: 11px;
+}
+.cron-tbl td { padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.cron-tbl tr:last-child td { border-bottom: none; }
+.cron-sched { white-space: nowrap; }
+.cron-sched code {
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 11.5px;
+  background: var(--panel-2); padding: 1px 6px; border-radius: 5px;
+}
+.cron-hum { display: block; color: var(--muted); font-size: 10.5px; margin-top: 2px; }
+.cron-user { color: var(--accent); white-space: nowrap; }
+.cron-cmd {
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 11.5px;
+  word-break: break-all;
+}
+.cron-timers {
+  margin: 0; padding: 10px 12px; background: var(--panel-2); border-radius: 8px;
+  font-size: 11px; line-height: 1.5; overflow-x: auto; white-space: pre;
+}
+
+/* ---- SSH Tüneli ---- */
+.tun-help { padding: 4px 2px 14px; line-height: 1.6; }
+.tun-form {
+  display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px;
+  padding: 14px; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px;
+}
+.tun-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; }
+.tun-form input {
+  width: 150px; padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 8px;
+  background: var(--panel); color: var(--text); font-size: 13px; outline: none;
+}
+.tun-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.tun-quick { margin: 10px 2px 4px; }
+.tun-quick .tun-q { color: var(--accent); text-decoration: none; }
+.tun-quick .tun-q:hover { text-decoration: underline; }
+.tun-list { margin-top: 14px; }
+.tun-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.tun-tbl th {
+  text-align: left; font-weight: 600; color: var(--muted);
+  padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 11px;
+}
+.tun-tbl td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.tun-tbl tr:last-child td { border-bottom: none; }
+.tun-local {
+  cursor: pointer; background: var(--accent-soft); color: var(--accent);
+  padding: 2px 8px; border-radius: 6px; font-weight: 600;
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+}
+.tun-local:hover { filter: brightness(1.08); }
+.tun-err { color: #e0a800; cursor: help; }
+.btn-xs { padding: 3px 10px; font-size: 11.5px; }
+.tbtn.danger { background: var(--danger, #d64545); color: #fff; border-color: transparent; }
+.tbtn.danger:hover { filter: brightness(1.08); }
 
 /* ---- Kullanıcı / chown ---- */
 .chown-box { border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; background: var(--panel-2); }

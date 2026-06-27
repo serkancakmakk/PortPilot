@@ -1,5 +1,6 @@
 // Karanlık / aydınlık tema — seçim localStorage'da kalıcı; ilk açılışta sistem
 // tercihine (prefers-color-scheme) düşer.
+import { t } from "./i18n.js";
 const KEY = "theme";
 
 function systemPref() {
@@ -15,8 +16,11 @@ function apply(theme) {
   const ico = document.querySelector("#btn-theme .theme-ico");
   const label = document.querySelector("#btn-theme .theme-label");
   if (ico) ico.textContent = theme === "dark" ? "☀️" : "🌙";
-  if (label) label.textContent = theme === "dark" ? "Aydınlık Tema" : "Karanlık Tema";
+  if (label) label.textContent = theme === "dark" ? t("nav.theme.light") : t("nav.theme.dark");
 }
+
+// Dil değişince tema etiketini yeni dile göre güncelle
+document.addEventListener("langchange", () => apply(currentTheme()));
 
 export function setTheme(theme) {
   localStorage.setItem(KEY, theme);

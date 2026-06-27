@@ -1,0 +1,9 @@
+[
+  {
+    "time": 1782555243778,
+    "action": "tunnel-open",
+    "host": "x",
+    "user": "u",
+    "detail": "localhost:52999 → 127.0.0.1:52997"
+  }
+]

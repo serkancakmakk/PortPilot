@@ -1,7 +1,7 @@
 const express = require("express");
 const crypto = require("crypto");
 const { connectRemote } = require("../lib/remote-fs");
-const { sessions } = require("../lib/sessions");
+const { sessions, closeTunnels } = require("../lib/sessions");
 const { logAudit } = require("../lib/audit");
 
 const router = express.Router();
@@ -60,6 +60,7 @@ router.post("/api/disconnect", (req, res) => {
   const token = req.get("x-session");
   const s = token && sessions.get(token);
   if (s) {
+    closeTunnels(token);
     try {
       s.fs.end();
     } catch (_) {}

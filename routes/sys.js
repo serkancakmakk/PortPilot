@@ -9,13 +9,15 @@ const router = express.Router();
 function runCmd(s, cmd) {
   return new Promise((resolve, reject) => {
     if (!hasExec(s)) return reject(new Error("Bu bağlantı kabuk komutlarını desteklemiyor."));
-    s.fs.exec.exec(cmd, (err, stream) => {
+    const run = (conn) => conn.exec(cmd, (err, stream) => {
       if (err) return reject(err);
       let out = "", errOut = "";
       stream.on("data", (d) => { out += d; });
       stream.stderr.on("data", (d) => { errOut += d; });
       stream.on("close", (code) => resolve({ code: code || 0, out, err: errOut }));
     });
+    // Bağlantı koptuysa şeffaf yeniden bağlan, sonra çalıştır
+    (s.fs.ensureLive ? s.fs.ensureLive() : Promise.resolve(s.fs.exec)).then(run).catch(reject);
   });
 }
 
@@ -211,6 +213,128 @@ router.post("/api/sys/cron", async (req, res) => {
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
+
+// ---- Cron: sunucudaki TÜM cron'ları topla (sistem + tüm kullanıcılar + systemd timer) ----
+// Çoğu kaynak (cron.d, diğer kullanıcı crontab'ları) root yetkisi ister; yetki yoksa
+// o bölüm boş gelir — hata değildir.
+router.get("/api/sys/cron-all", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return notSupported(res);
+
+  // Bölüm işaretleyicileriyle tek seferde tüm kaynakları oku.
+  const script = [
+    'echo "##SEC:system##"; cat /etc/crontab 2>/dev/null',
+    'echo "##SEC:crond##"; for f in /etc/cron.d/*; do [ -f "$f" ] && echo "##FILE:$f##" && cat "$f"; done 2>/dev/null',
+    'echo "##SEC:periodic##"; for d in hourly daily weekly monthly; do for f in /etc/cron.$d/*; do [ -f "$f" ] && echo "$d:$f"; done; done 2>/dev/null',
+    'echo "##SEC:users##"; for D in /var/spool/cron/crontabs /var/spool/cron; do [ -d "$D" ] && for f in "$D"/*; do [ -f "$f" ] && echo "##FILE:$f##" && cat "$f"; done; done 2>/dev/null',
+    'echo "##SEC:timers##"; systemctl list-timers --all --no-pager 2>/dev/null',
+  ].join("; ");
+
+  try {
+    const r = await runCmd(s, script);
+    res.json({ available: true, ...parseCronAll(r.out) });
+  } catch (e) { res.json({ available: false, error: e.message }); }
+});
+
+// Tek bir cron satırını {schedule, command} olarak ayrıştırır.
+// hasUser=true ise (sistem crontab / cron.d) 6. alan kullanıcı adıdır.
+function parseCronLine(line, hasUser) {
+  const t = line.replace(/\r$/, "");
+  const sn = (x) => x.trim().replace(/\s+/g, " "); // zamanlama alanını sadeleştir
+  if (!t.trim()) return null;
+  if (t.trim().startsWith("#")) return { comment: true, raw: t.trim() };
+  // Ortam değişkeni satırı: FOO=bar (zamanlama hiçbir zaman "kelime=" ile başlamaz)
+  if (/^\s*[A-Za-z_][A-Za-z0-9_]*\s*=/.test(t)) return { env: true, raw: t.trim() };
+  let m;
+  if ((m = t.match(/^\s*(@\w+)\s+(?:(\S+)\s+)?(.*)$/)) && hasUser) {
+    return { schedule: m[1], user: m[2] || "", command: m[3].trim() };
+  }
+  if ((m = t.match(/^\s*(@\w+)\s+(.*)$/))) {
+    return { schedule: m[1], command: m[2].trim() };
+  }
+  if (hasUser && (m = t.match(/^\s*((?:\S+\s+){5})(\S+)\s+(.*)$/))) {
+    return { schedule: sn(m[1]), user: m[2], command: m[3].trim() };
+  }
+  if ((m = t.match(/^\s*((?:\S+\s+){5})(.*)$/))) {
+    return { schedule: sn(m[1]), command: m[2].trim() };
+  }
+  return { command: t.trim() };
+}
+
+function parseCronAll(out) {
+  const sections = { system: "", crond: "", periodic: "", users: "", timers: "" };
+  let cur = null;
+  for (const raw of out.split("\n")) {
+    const sm = raw.match(/^##SEC:(\w+)##/);
+    if (sm) { cur = sm[1]; continue; }
+    if (cur && cur in sections) sections[cur] += raw + "\n";
+  }
+
+  const groups = [];
+  let total = 0;
+
+  // Dosya bazlı bölümleri (##FILE:yol## ile ayrılmış) gruplara böler.
+  function fileGroups(text, hasUser, sourceLabel) {
+    const parts = text.split(/^##FILE:(.+?)##$/m);
+    // parts: ["", path1, body1, path2, body2, ...] ya da hiç dosya yoksa ["body"]
+    if (parts.length === 1) {
+      const jobs = collectJobs(parts[0], hasUser);
+      if (jobs.length) { groups.push({ source: sourceLabel, file: "", jobs }); total += jobs.length; }
+      return;
+    }
+    for (let i = 1; i < parts.length; i += 2) {
+      const file = parts[i], body = parts[i + 1] || "";
+      const jobs = collectJobs(body, hasUser);
+      if (jobs.length) { groups.push({ source: sourceLabel, file, jobs }); total += jobs.length; }
+    }
+  }
+
+  function collectJobs(text, hasUser) {
+    const jobs = [];
+    for (const line of text.split("\n")) {
+      const p = parseCronLine(line, hasUser);
+      if (p && !p.comment && !p.env && p.command) jobs.push(p);
+    }
+    return jobs;
+  }
+
+  // /etc/crontab (kullanıcı alanlı)
+  fileGroups(sections.system, true, "/etc/crontab");
+  // /etc/cron.d/*
+  fileGroups(sections.crond, true, "cron.d");
+  // kullanıcı crontab'ları (/var/spool/cron…)
+  fileGroups(sections.users, false, "kullanıcı crontab");
+
+  // /etc/cron.{hourly,daily,weekly,monthly} — betik listesi
+  const periodic = [];
+  for (const line of sections.periodic.split("\n")) {
+    const t = line.trim();
+    if (!t || !t.includes(":")) continue;
+    const idx = t.indexOf(":");
+    periodic.push({ when: t.slice(0, idx), file: t.slice(idx + 1) });
+  }
+
+  // systemd timer'ları (ham metin — okunaklı tablo)
+  const timersRaw = sections.timers.trim();
+  let timerCount = 0;
+  if (timersRaw) {
+    const tl = timersRaw.split("\n").filter((l) => l.trim());
+    // Son satır genelde "N timers listed." özetidir
+    const summary = tl[tl.length - 1] || "";
+    const m = summary.match(/(\d+)\s+timers?\s+listed/i);
+    timerCount = m ? Number(m[1]) : Math.max(0, tl.length - 2);
+  }
+
+  return {
+    groups,
+    periodic,
+    timersRaw,
+    timerCount,
+    total,
+    counts: { tasks: total, periodic: periodic.length, timers: timerCount },
+  };
+}
 
 // ---- Kullanıcılar (/etc/passwd) ----
 router.get("/api/sys/users", async (req, res) => {

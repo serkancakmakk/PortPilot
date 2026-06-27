@@ -3,10 +3,12 @@ import { $, escapeHtml, escapeAttr, toast, showLoading } from "./dom.js";
 import { api } from "./api.js";
 import { confirmDialog } from "./dialog.js";
 import { fmtSize } from "./explorer.js";
+import { t } from "./i18n.js";
 
 let sysTab = "ports";
 let logPath = "/var/log/syslog";
 let duPath = "/";
+let tunnelTimer = null;
 
 function setTab(tab) {
   sysTab = tab;
@@ -18,12 +20,14 @@ function setTab(tab) {
 function msg(html) { $("systools-body").innerHTML = `<div class="dk-msg">${html}</div>`; }
 
 async function loadTab() {
+  if (tunnelTimer) { clearInterval(tunnelTimer); tunnelTimer = null; }
   $("systools-status").textContent = "";
   if (sysTab === "log") return renderLog();
   if (sysTab === "diskusage") return loadDiskUsage();
   if (sysTab === "cron") return loadCron();
   if (sysTab === "users") return loadUsers();
   if (sysTab === "ssh") return loadSsh();
+  if (sysTab === "tunnel") return loadTunnel();
   msg("Yükleniyor…");
   let data;
   try {
@@ -54,10 +58,89 @@ async function loadCron() {
     <div class="cron-actions">
       <button id="cron-save" class="btn btn-sm tbtn primary">Kaydet</button>
       <span class="dk-sub">Kaydet, kullanıcının tüm crontab'ını bu içerikle değiştirir.</span>
-    </div>`;
+    </div>
+    <div class="cron-all-head">
+      <span class="cron-all-title">${escapeHtml(t("cron.allTitle"))}</span>
+      <button id="cron-all-load" class="btn btn-sm tbtn">${escapeHtml(t("cron.scan"))}</button>
+    </div>
+    <div id="cron-all-body" class="cron-all-body"></div>`;
   $("cron-edit").value = raw;
   $("cron-save").addEventListener("click", saveCron);
+  $("cron-all-load").addEventListener("click", loadCronAll);
   $("systools-status").textContent = (data.lines || []).filter((l) => !l.comment && !l.isEnv).length + " görev";
+  loadCronAll();
+}
+
+// Cron zamanlamasını okunaklı Türkçe metne çevir (basit yaygın desenler).
+function cronHuman(sched) {
+  const named = {
+    "@reboot": "her açılışta", "@yearly": "her yıl", "@annually": "her yıl",
+    "@monthly": "her ay", "@weekly": "her hafta", "@daily": "her gün",
+    "@midnight": "her gün gece yarısı", "@hourly": "her saat",
+  };
+  if (named[sched]) return named[sched];
+  const p = sched.split(/\s+/);
+  if (p.length !== 5) return "";
+  const [mi, h, dom, mon, dow] = p;
+  const num = (x) => /^\d+$/.test(x);
+  if (mi === "*" && h === "*" && dom === "*" && mon === "*" && dow === "*") return "her dakika";
+  if (num(mi) && h === "*" && dom === "*" && mon === "*" && dow === "*") return `saat başı ${mi}. dk`;
+  if (num(mi) && num(h) && dom === "*" && mon === "*" && dow === "*")
+    return `her gün ${h.padStart(2, "0")}:${mi.padStart(2, "0")}`;
+  if (mi.startsWith("*/") && h === "*") return `her ${mi.slice(2)} dakikada bir`;
+  if (num(mi) && h.startsWith("*/")) return `her ${h.slice(2)} saatte bir, ${mi}. dk`;
+  return "";
+}
+
+async function loadCronAll() {
+  const box = $("cron-all-body");
+  if (!box) return;
+  box.innerHTML = `<div class="dk-sub" style="padding:8px 2px">${escapeHtml(t("cron.scanning"))}</div>`;
+  let d;
+  try { d = await api("sys/cron-all"); }
+  catch (e) { box.innerHTML = `<div class="dk-sub">Hata: ${escapeHtml(e.message)}</div>`; return; }
+  if (!d || !d.available) { box.innerHTML = `<div class="dk-sub">Bu sunucuda kullanılamıyor.</div>`; return; }
+
+  const parts = [];
+  const c = d.counts || {};
+  parts.push(`<div class="cron-all-sum dk-sub">${c.tasks || 0} zamanlanmış görev · ${c.periodic || 0} periyodik betik · ${c.timers || 0} systemd timer</div>`);
+
+  for (const g of (d.groups || [])) {
+    const rows = g.jobs.map((j) => {
+      const hum = cronHuman(j.schedule || "");
+      return `<tr>
+        <td class="cron-sched"><code>${escapeHtml(j.schedule || "")}</code>${hum ? `<span class="cron-hum">${escapeHtml(hum)}</span>` : ""}</td>
+        ${j.user !== undefined ? `<td class="cron-user">${escapeHtml(j.user || "—")}</td>` : ""}
+        <td class="cron-cmd">${escapeHtml(j.command || "")}</td>
+      </tr>`;
+    }).join("");
+    const hasUser = g.jobs.some((j) => j.user !== undefined);
+    parts.push(`<div class="cron-grp">
+      <div class="cron-grp-h">${escapeHtml(g.source)}${g.file ? ` · <span class="dk-sub">${escapeHtml(g.file)}</span>` : ""} <span class="cron-grp-n">${g.jobs.length}</span></div>
+      <table class="cron-tbl"><thead><tr><th>${escapeHtml(t("cron.colSchedule"))}</th>${hasUser ? `<th>${escapeHtml(t("cron.colUser"))}</th>` : ""}<th>${escapeHtml(t("cron.colCommand"))}</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`);
+  }
+
+  if ((d.periodic || []).length) {
+    const rows = d.periodic.map((p) =>
+      `<tr><td class="cron-sched"><span class="cron-hum">${escapeHtml(p.when)}</span></td><td class="cron-cmd">${escapeHtml(p.file)}</td></tr>`).join("");
+    parts.push(`<div class="cron-grp">
+      <div class="cron-grp-h">Periyodik betikler · <span class="dk-sub">/etc/cron.*</span> <span class="cron-grp-n">${d.periodic.length}</span></div>
+      <table class="cron-tbl"><thead><tr><th>Sıklık</th><th>Betik</th></tr></thead><tbody>${rows}</tbody></table>
+    </div>`);
+  }
+
+  if (d.timersRaw) {
+    parts.push(`<div class="cron-grp">
+      <div class="cron-grp-h">systemd timer'ları <span class="cron-grp-n">${d.timerCount || 0}</span></div>
+      <pre class="cron-timers">${escapeHtml(d.timersRaw)}</pre>
+    </div>`);
+  }
+
+  if (!(d.groups || []).length && !(d.periodic || []).length && !d.timersRaw) {
+    parts.push(`<div class="dk-sub" style="padding:8px 2px">${t("cron.none")}</div>`);
+  }
+  box.innerHTML = parts.join("");
 }
 
 async function saveCron() {
@@ -68,6 +151,96 @@ async function saveCron() {
     toast("Crontab kaydedildi");
     loadCron();
   } catch (e) { toast(e.message, true); }
+  finally { showLoading(false); }
+}
+
+// ---- SSH Tüneli (yerel port yönlendirme) ----
+async function loadTunnel() {
+  $("systools-body").innerHTML = `
+    <div class="tun-help dk-sub">${t("tun.help")}</div>
+    <div class="tun-form">
+      <label>${escapeHtml(t("tun.remoteHost"))}
+        <input id="tun-rhost" type="text" value="127.0.0.1" placeholder="127.0.0.1 / db-ic-adres">
+      </label>
+      <label>${escapeHtml(t("tun.remotePort"))}
+        <input id="tun-rport" type="number" min="1" max="65535" placeholder="5432">
+      </label>
+      <label>${escapeHtml(t("tun.localPort"))} <span class="dk-sub">${escapeHtml(t("tun.localAuto"))}</span>
+        <input id="tun-lport" type="number" min="1" max="65535" placeholder="otomatik">
+      </label>
+      <button id="tun-open" class="btn btn-sm tbtn primary">${escapeHtml(t("tun.open"))}</button>
+    </div>
+    <div class="tun-quick dk-sub">
+      ${escapeHtml(t("tun.quick"))} ${["PostgreSQL 5432","MySQL 3306","Redis 6379","MongoDB 27017"]
+        .map((q) => { const [n, p] = q.split(" "); return `<a href="#" class="tun-q" data-port="${p}">${n} (${p})</a>`; }).join(" · ")}
+    </div>
+    <div id="tun-list" class="tun-list"></div>`;
+
+  $("tun-open").addEventListener("click", openTunnel);
+  $("tun-rport").addEventListener("keydown", (e) => { if (e.key === "Enter") openTunnel(); });
+  $("tun-lport").addEventListener("keydown", (e) => { if (e.key === "Enter") openTunnel(); });
+  document.querySelectorAll("#systools-body .tun-q").forEach((a) =>
+    a.addEventListener("click", (e) => { e.preventDefault(); $("tun-rport").value = a.dataset.port; $("tun-rport").focus(); }));
+
+  await refreshTunnels();
+  tunnelTimer = setInterval(() => {
+    if (sysTab !== "tunnel" || !$("tun-list")) { clearInterval(tunnelTimer); tunnelTimer = null; return; }
+    refreshTunnels();
+  }, 3000);
+}
+
+async function refreshTunnels() {
+  const box = $("tun-list");
+  if (!box) return;
+  let d;
+  try { d = await api("tunnel/list"); }
+  catch (e) { box.innerHTML = `<div class="dk-sub">Hata: ${escapeHtml(e.message)}</div>`; return; }
+  if (!d || !d.available) {
+    box.innerHTML = `<div class="dk-msg">${t("tun.onlySsh")}</div>`;
+    return;
+  }
+  const items = d.items || [];
+  $("systools-status").textContent = items.length + " " + t("tun.active");
+  if (!items.length) { box.innerHTML = `<div class="dk-sub" style="padding:10px 2px">${escapeHtml(t("tun.none"))}</div>`; return; }
+  box.innerHTML = `<table class="tun-tbl"><thead><tr>
+      <th>${escapeHtml(t("tun.colLocal"))}</th><th>${escapeHtml(t("tun.colRemote"))}</th><th>${escapeHtml(t("tun.colConns"))}</th><th>${escapeHtml(t("tun.colTraffic"))}</th><th></th>
+    </tr></thead><tbody>${items.map(tunRow).join("")}</tbody></table>`;
+  box.querySelectorAll("[data-close]").forEach((b) =>
+    b.addEventListener("click", () => closeTunnel(b.dataset.close)));
+  box.querySelectorAll("[data-copy]").forEach((b) =>
+    b.addEventListener("click", () => { navigator.clipboard?.writeText(b.dataset.copy); toast(t("tun.copied") + b.dataset.copy); }));
+}
+
+function tunRow(tn) {
+  const local = `localhost:${tn.localPort}`;
+  return `<tr>
+    <td><code class="tun-local" data-copy="${escapeAttr(local)}" title="Kopyala">${escapeHtml(local)}</code></td>
+    <td class="cron-cmd">${escapeHtml(tn.remoteHost)}:${escapeHtml(String(tn.remotePort))}</td>
+    <td>${tn.conns}${tn.error ? ` <span class="tun-err" title="${escapeAttr(tn.error)}">⚠</span>` : ""}</td>
+    <td class="dk-sub">↑${fmtSize(tn.bytesUp)} ↓${fmtSize(tn.bytesDown)}</td>
+    <td><button class="btn btn-xs tbtn danger" data-close="${escapeAttr(tn.id)}">${escapeHtml(t("tun.btnClose"))}</button></td>
+  </tr>`;
+}
+
+async function openTunnel() {
+  const remoteHost = ($("tun-rhost").value || "127.0.0.1").trim();
+  const remotePort = Number($("tun-rport").value);
+  const localPort = $("tun-lport").value ? Number($("tun-lport").value) : undefined;
+  if (!remotePort) { toast(t("tun.needPort"), true); return; }
+  showLoading(true);
+  try {
+    const r = await api("tunnel/open", { method: "POST", json: { remoteHost, remotePort, localPort } });
+    toast(`${t("tun.opened")}localhost:${r.localPort} → ${remoteHost}:${remotePort}`);
+    $("tun-rport").value = ""; $("tun-lport").value = "";
+    await refreshTunnels();
+  } catch (e) { toast(e.message, true); }
+  finally { showLoading(false); }
+}
+
+async function closeTunnel(id) {
+  showLoading(true);
+  try { await api("tunnel/close", { method: "POST", json: { id } }); await refreshTunnels(); }
+  catch (e) { toast(e.message, true); }
   finally { showLoading(false); }
 }
 

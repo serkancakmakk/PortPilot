@@ -21,6 +21,8 @@ import { initWhatsNew } from "./whatsnew.js";
 import { initTransferQueue } from "./transfer-queue.js";
 import { initLock } from "./lock.js";
 import { initTheme } from "./theme.js";
+import { initLang } from "./i18n.js";
+import { initEditExternal, stopAllEdits } from "./edit-external.js";
 import { initAudit } from "./audit.js";
 import { initDualPane } from "./dual-pane.js";
 import { hideMenu, showAreaMenu, renameItem, deleteItem } from "./context-menu.js";
@@ -70,6 +72,7 @@ async function applyVersionBadge() {
 document.addEventListener("DOMContentLoaded", () => {
   applyIcons();
   applyVersionBadge();
+  initLang();
   initTheme();
   initLock();
   initLogin();
@@ -89,6 +92,15 @@ document.addEventListener("DOMContentLoaded", () => {
   initDualPane();
   initWhatsNew();
   initTransferQueue();
+  initEditExternal();
+
+  // Dış düzenleme sunucuya senkronlandığında, o klasör görüntüleniyorsa listeyi tazele
+  document.addEventListener("external-edit-synced", (e) => {
+    const dir = e.detail && e.detail.remoteDir;
+    if (dir && (cwd === dir || (cwd || "/") === (dir || "/"))) {
+      import("./explorer.js").then((m) => m.navigate(cwd));
+    }
+  });
 
   // Küçük ekran: sidebar aç/kapa (off-canvas)
   const sb = document.querySelector(".sidebar");
@@ -144,6 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Bağlantı kes butonu
   $("btn-disconnect").addEventListener("click", () => {
+    stopAllEdits();
     if (activeConnId) closeConnection(activeConnId);
   });
 
