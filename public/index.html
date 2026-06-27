@@ -346,10 +346,14 @@
         </div>
         <span class="editor-status" id="docker-status"></span>
         <div class="spacer"></div>
-        <button id="docker-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> Yenile</button>
-        <button id="docker-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
+        <button id="docker-cmds-btn" class="ed-btn" title="Hazır Docker komutları"><span class="q-ico">📋</span> <span data-i18n="term.commands">Komutlar</span></button>
+        <button id="docker-refresh" class="ed-btn"><span class="nav-ico-wrap" data-icon="refresh"></span> <span data-i18n="common.refresh">Yenile</span></button>
+        <button id="docker-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> <span data-i18n="common.close">Kapat</span></button>
       </div>
-      <div class="docker-body" id="docker-body"></div>
+      <div class="docker-main">
+        <div class="docker-body" id="docker-body"></div>
+        <aside id="docker-cmds" class="cmd-panel docker-cmds" hidden></aside>
+      </div>
     </div>
   </div>
 
@@ -412,10 +416,14 @@
       <div class="editor-head">
         <span class="editor-title" id="term-title">⌨ Terminal</span>
         <div class="spacer"></div>
-        <button id="term-min" class="ed-btn" title="Küçült (bağlantı açık kalır)"><span class="nav-ico-wrap" data-icon="minus"></span> Küçült</button>
-        <button id="term-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
+        <button id="term-cmds-btn" class="ed-btn" title="Hazır komutlar"><span class="q-ico">📋</span> <span data-i18n="term.commands">Komutlar</span></button>
+        <button id="term-min" class="ed-btn" title="Küçült (bağlantı açık kalır)"><span class="nav-ico-wrap" data-icon="minus"></span> <span data-i18n="common.minimize">Küçült</span></button>
+        <button id="term-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> <span data-i18n="common.close">Kapat</span></button>
       </div>
-      <div id="term-host" class="term-host"></div>
+      <div class="term-body">
+        <div id="term-host" class="term-host"></div>
+        <aside id="term-cmds" class="term-cmds cmd-panel" hidden></aside>
+      </div>
       <div id="term-resize" class="term-resize" title="Boyutlandırmak için sürükle"></div>
     </div>
   </div>

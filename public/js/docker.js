@@ -266,10 +266,32 @@ export async function dockerAction(action, id, type) {
   finally { showLoading(false); }
 }
 
+// Docker komut yardımcısı panelini aç/kapat; komuta tıklayınca sunucu terminaline yazar
+async function toggleDockerCmds() {
+  const panel = $("docker-cmds");
+  if (!panel) return;
+  const show = panel.hidden;
+  panel.hidden = !show;
+  $("docker-cmds-btn").classList.toggle("active", show);
+  if (show && !panel.dataset.loaded) {
+    const [{ renderCmdPanel, DOCKER_GROUPS }, { currentLang }] =
+      await Promise.all([import("./cmd-helper.js"), import("./i18n.js")]);
+    const lang = currentLang();
+    renderCmdPanel(panel, DOCKER_GROUPS, (cmd, run) => {
+      if (window._runInServerTerminal) window._runInServerTerminal(cmd, run);
+      else toast("Terminal bulunamadı.", true);
+    }, { hint: lang === "en" ? "Click to insert in the server terminal; ▶ runs it."
+        : "Tıkla → sunucu terminaline yaz · ▶ ile çalıştır." });
+    panel.dataset.loaded = "1";
+  }
+}
+
 export function initDocker() {
   $("btn-docker").addEventListener("click", () => { $("docker-panel").hidden = false; loadDocker(); });
   $("docker-close").addEventListener("click", () => { $("docker-panel").hidden = true; });
   $("docker-refresh").addEventListener("click", loadDocker);
+  const dcBtn = $("docker-cmds-btn");
+  if (dcBtn) dcBtn.addEventListener("click", toggleDockerCmds);
   document.querySelectorAll(".dk-tab").forEach((t) => {
     t.addEventListener("click", () => {
       document.querySelectorAll(".dk-tab").forEach((x) => x.classList.remove("active"));

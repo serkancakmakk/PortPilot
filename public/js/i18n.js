@@ -44,6 +44,8 @@ const DICT = {
     "common.close": "Kapat",
     "common.files": "Dosyalar",
     "common.save": "Kaydet",
+    "common.minimize": "Küçült",
+    "term.commands": "Komutlar",
     // Sunucu Araçları sekmeleri
     "sys.tab.ports": "Açık Portlar",
     "sys.tab.procs": "Süreçler",
@@ -119,6 +121,8 @@ const DICT = {
     "common.close": "Close",
     "common.files": "Files",
     "common.save": "Save",
+    "common.minimize": "Minimize",
+    "term.commands": "Commands",
     "sys.tab.ports": "Open Ports",
     "sys.tab.procs": "Processes",
     "sys.tab.services": "Services",

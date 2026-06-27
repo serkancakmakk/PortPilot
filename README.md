@@ -104,6 +104,7 @@ Bağlantılar ve dosya işlemleri zaman damgalı kayıt.
 - Boşta kalan oturum otomatik kapanır
 
 ### 🎨 Deneyim
+- **Komut yardımcısı (cheat-sheet):** Terminal ve Docker panelinde **"📋 Komutlar"** ile kategorize, aranabilir, iki dilli hazır komut listesi (~75 komut) — tıkla, komut satırına gelsin
 - **Karanlık / aydınlık tema** (kalıcı, sistem tercihine uyar)
 - **Dil seçeneği (Türkçe / English)** — kalıcı, ilk açılışta tarayıcı diline uyar
 - **Sunucu paneli:** CPU / RAM / disk için canlı **sparkline geçmiş grafikleri** + **%90 eşik bildirimleri** (masaüstü)

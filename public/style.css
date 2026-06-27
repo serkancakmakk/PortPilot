@@ -2745,13 +2745,81 @@ tr.dir .fname {
   color: #fff;
 }
 
+/* Terminal gövdesi: xterm + komut paneli yan yana */
+.term-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
 .term-host {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
   background: #0b1020;
   padding: 8px 10px;
-  border-radius: 0 0 12px 12px;
+  border-radius: 0 0 0 12px;
   overflow: hidden;
+}
+.term-cmds { border-radius: 0 0 12px 0; }
+
+/* ====== Komut yardımcısı (cheat-sheet) ====== */
+.cmd-panel {
+  flex: 0 0 320px;
+  max-width: 42vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+}
+.docker-main { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: row; overflow: hidden; }
+.docker-main .docker-body { flex: 1 1 auto; min-width: 0; }
+.docker-cmds { border-left: 1px solid var(--border); }
+
+.cmd-help-top { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+.cmd-search {
+  width: 100%; padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 8px;
+  background: var(--panel-2); color: var(--text); font-size: 13px; outline: none;
+}
+.cmd-search:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.cmd-hint { margin-top: 7px; font-size: 11px; line-height: 1.4; }
+.cmd-groups { flex: 1 1 auto; overflow-y: auto; padding: 6px 8px 12px; }
+.cmd-grp { margin-bottom: 12px; }
+.cmd-grp-h {
+  position: sticky; top: 0; z-index: 1;
+  font-weight: 700; font-size: 12px; padding: 6px 4px;
+  background: var(--panel); color: var(--text);
+}
+.cmd-row {
+  display: flex; align-items: stretch; gap: 4px;
+  border: 1px solid transparent; border-radius: 8px;
+  margin-bottom: 3px;
+}
+.cmd-row:hover { background: var(--accent-soft); border-color: var(--border); }
+.cmd-main {
+  flex: 1 1 auto; min-width: 0; text-align: left; cursor: pointer;
+  border: none; background: transparent; padding: 7px 9px; border-radius: 8px;
+}
+.cmd-run {
+  flex: 0 0 auto; width: 30px; cursor: pointer;
+  border: none; background: transparent; color: var(--muted);
+  border-radius: 8px; font-size: 12px;
+}
+.cmd-run:hover { background: var(--accent); color: #fff; }
+.cmd-code {
+  display: block;
+  font-family: "SFMono-Regular", Consolas, Menlo, monospace; font-size: 12px;
+  color: var(--accent); font-weight: 600; word-break: break-all;
+}
+.cmd-desc { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+.ed-btn.active { background: var(--accent-soft); color: var(--accent); }
+
+@media (max-width: 640px) {
+  .cmd-panel { flex-basis: 100%; max-width: 100%; border-left: none; border-top: 1px solid var(--border); }
+  .term-body, .docker-main { flex-direction: column; }
 }
 
 .term-host .xterm {

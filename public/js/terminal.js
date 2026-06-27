@@ -2,6 +2,34 @@ import { $, toast } from "./dom.js";
 import { session } from "./state.js";
 
 let termState = null;
+let pendingInsert = null; // terminal açılırken yazılacak komut (Docker panelinden)
+
+// Terminale metin yaz (otomatik çalıştırma yok — kullanıcı düzenleyip Enter'a basar).
+// run=true ise sonuna \r ekleyip çalıştırır.
+export function insertToTerminal(text, run = false) {
+  if (!termState || termState.ws.readyState !== 1) {
+    toast("Önce terminali aç.", true);
+    return false;
+  }
+  termState.ws.send(JSON.stringify({ i: text + (run ? "\r" : "") }));
+  try { termState.term.focus(); } catch (_) {}
+  return true;
+}
+
+// Komut panelini aç/kapat (cheat-sheet)
+async function toggleCmdPanel() {
+  const panel = $("term-cmds");
+  if (!panel) return;
+  const show = panel.hidden;
+  panel.hidden = !show;
+  $("term-cmds-btn").classList.toggle("active", show);
+  if (show && !panel.dataset.loaded) {
+    const { renderCmdPanel, SHELL_GROUPS } = await import("./cmd-helper.js");
+    renderCmdPanel(panel, SHELL_GROUPS, (cmd, run) => insertToTerminal(cmd, run));
+    panel.dataset.loaded = "1";
+  }
+  if (termState) requestAnimationFrame(() => termState.onResize());
+}
 
 export function openTerminal(id, name, dir) {
   if (!session) {
@@ -55,6 +83,11 @@ export function openTerminal(id, name, dir) {
       fit.fit();
     } catch (_) {}
     sendResize();
+    // Açılışta bekleyen komut varsa (Docker panelinden gelen) yaz
+    if (pendingInsert) {
+      const txt = pendingInsert; pendingInsert = null;
+      setTimeout(() => { try { ws.send(JSON.stringify({ i: txt })); } catch (_) {} }, 250);
+    }
   };
   ws.onmessage = (ev) => {
     if (typeof ev.data === "string") term.write(ev.data);
@@ -120,6 +153,18 @@ export function openServerTerminal(dir) {
   openTerminal("__host__", name, dir);
 }
 
+// Sunucu terminalini aç ve bir komutu yaz. run=true ise doğrudan çalıştırır.
+// Zaten açık bir terminal varsa oraya yazar.
+export function runInServerTerminal(cmd, run = false) {
+  if (termState && termState.ws.readyState === 1) {
+    if ($("terminal-modal").hidden) restoreTerminal();
+    insertToTerminal(cmd, run);
+    return;
+  }
+  pendingInsert = cmd + (run ? "\r" : "");
+  openServerTerminal();
+}
+
 // Sağ-alt köşeden sürükleyerek terminal kutusunu boyutlandır.
 // Kutu overlay içinde ortalandığından, köşenin imleci takip etmesi için
 // boyut değişimini 2× uygularız (merkez sabit kalır, iki yana büyür).
@@ -152,6 +197,8 @@ export function initTerminal() {
   initTerminalResize();
   $("term-close").addEventListener("click", closeTerminal);
   $("term-min").addEventListener("click", minimizeTerminal);
+  const cmdsBtn = $("term-cmds-btn");
+  if (cmdsBtn) cmdsBtn.addEventListener("click", toggleCmdPanel);
   $("term-restore").addEventListener("click", restoreTerminal);
   $("term-dock-close").addEventListener("click", closeTerminal);
   const btnTerminal = $("btn-terminal");
@@ -159,4 +206,5 @@ export function initTerminal() {
     btnTerminal.addEventListener("click", () => openServerTerminal());
   // docker.js'in inline onclick'leri için global
   window._openTerminal = openTerminal;
+  window._runInServerTerminal = runInServerTerminal;
 }
