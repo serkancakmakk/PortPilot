@@ -10,7 +10,7 @@ const router = express.Router();
 const PROTOCOLS = { sftp: 22, ftp: 21, ftps: 21 };
 
 router.post("/api/connect", async (req, res) => {
-  const { host, port, username, password, privateKey, passphrase } =
+  const { host, port, username, password, privateKey, passphrase, jump } =
     req.body || {};
   const protocol = ((req.body && req.body.protocol) || "sftp").toLowerCase();
   if (!host || !username) {
@@ -21,6 +21,13 @@ router.post("/api/connect", async (req, res) => {
   if (!(protocol in PROTOCOLS)) {
     return res.status(400).json({ error: "Geçersiz protokol." });
   }
+  // Jump host (bastion) yalnızca SFTP/SSH hedeflerde geçerli
+  const jumpCfg = (protocol === "sftp" && jump && jump.host && jump.username)
+    ? {
+        host: jump.host, port: Number(jump.port) || 22, username: jump.username,
+        password: jump.password, privateKey: jump.privateKey, passphrase: jump.passphrase,
+      }
+    : undefined;
   const portNum = Number(port) || PROTOCOLS[protocol];
 
   try {
@@ -32,6 +39,7 @@ router.post("/api/connect", async (req, res) => {
       privateKey,
       passphrase,
       protocol,
+      jump: jumpCfg,
     });
     let home = "/";
     try {
@@ -42,14 +50,15 @@ router.post("/api/connect", async (req, res) => {
     const token = crypto.randomBytes(24).toString("hex");
     sessions.set(token, {
       fs: remoteFs,
-      info: { host, port: portNum, username, protocol },
+      info: { host, port: portNum, username, protocol, via: jumpCfg ? jumpCfg.host : null },
       lastUsed: Date.now(),
     });
-    logAudit({ action: "connect", host, user: username, detail: `${protocol}://${host}:${portNum}` });
+    logAudit({ action: "connect", host, user: username,
+      detail: `${protocol}://${host}:${portNum}${jumpCfg ? ` (via ${jumpCfg.host})` : ""}` });
     res.json({
       session: token,
       home: home || "/",
-      info: { host, username, port: portNum, protocol },
+      info: { host, username, port: portNum, protocol, via: jumpCfg ? jumpCfg.host : null },
     });
   } catch (e) {
     res.status(400).json({ error: e.message || "Bağlanılamadı." });

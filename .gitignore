@@ -7,6 +7,9 @@ servers.json
 # Kullanıcı tercihleri (favoriler vb.) — yerel
 prefs.json
 
+# İşlem günlüğü (çalışma-zamanı verisi) — yerel
+audit.json
+
 # Loglar ve geçici dosyalar
 *.log
 .DS_Store
@@ -15,4 +18,6 @@ prefs.json
 # Editör
 .vscode/
 .idea/
+
+# Derleme çıktısı
 /dist

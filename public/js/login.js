@@ -13,11 +13,29 @@ export function applyProtocol(opts = {}) {
   const isSsh = proto === "sftp";
   keyTab.hidden = !isSsh;
   if (!isSsh) document.querySelector('[data-auth="password"]').click();
+  // Jump host yalnızca SFTP'de geçerli
+  if ($("jump-section")) $("jump-section").hidden = !isSsh;
   if (!opts.keepPort) {
     const cur = f.port.value.trim();
     if (!cur || Object.values(DEFAULT_PORTS).includes(cur))
       f.port.value = DEFAULT_PORTS[proto];
   }
+}
+
+// Formdan jump (atlama sunucusu) yapılandırmasını oku; doldurulmamışsa null döner.
+function readJump(f) {
+  if ($("jump-section") && $("jump-section").hidden) return null;
+  const host = (f.jumpHost && f.jumpHost.value.trim()) || "";
+  const username = (f.jumpUsername && f.jumpUsername.value.trim()) || "";
+  if (!host || !username) return null;
+  return {
+    host,
+    port: Number(f.jumpPort && f.jumpPort.value.trim()) || 22,
+    username,
+    password: (f.jumpPassword && f.jumpPassword.value) || "",
+    privateKey: (f.jumpPrivateKey && f.jumpPrivateKey.value) || "",
+    passphrase: (f.jumpPassphrase && f.jumpPassphrase.value) || "",
+  };
 }
 
 export function initLogin() {
@@ -35,6 +53,25 @@ export function initLogin() {
 
   $("save-server").addEventListener("change", (e) => {
     $("save-pass-row").hidden = !e.target.checked;
+  });
+
+  // Jump host bölümünü aç/kapat
+  if ($("jump-toggle")) $("jump-toggle").addEventListener("click", () => {
+    const body = $("jump-body");
+    const open = body.hidden;
+    body.hidden = !open;
+    $("jump-toggle").setAttribute("aria-expanded", open ? "true" : "false");
+    $("jump-toggle").querySelector(".jump-chevron").textContent = open ? "▾" : "▸";
+  });
+  // Jump host auth sekmeleri
+  document.querySelectorAll("#jump-auth-tabs button[data-jauth]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll("#jump-auth-tabs button[data-jauth]").forEach((t) => t.setAttribute("aria-selected", "false"));
+      tab.setAttribute("aria-selected", "true");
+      const mode = tab.dataset.jauth;
+      document.querySelector('[data-jpane="password"]').hidden = mode !== "password";
+      document.querySelector('[data-jpane="key"]').hidden = mode !== "key";
+    });
   });
 
   $("connect-form").addEventListener("submit", async (e) => {
@@ -55,6 +92,8 @@ export function initLogin() {
         privateKey: protocol === "sftp" ? f.privateKey.value : "",
         passphrase: protocol === "sftp" ? f.passphrase.value : "",
       };
+      const jump = protocol === "sftp" ? readJump(f) : null;
+      if (jump) body.jump = jump;
       let r;
       try {
         r = await fetch("/api/connect", {
@@ -77,7 +116,7 @@ export function initLogin() {
       const conn = {
         id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
         session: data.session,
-        info: { host: i.host, username: i.username, port: i.port, protocol: i.protocol, name: savedName || null },
+        info: { host: i.host, username: i.username, port: i.port, protocol: i.protocol, via: i.via || null, name: savedName || null },
         cwd: home, homePath: home, history: [], connectedAt: Date.now(),
       };
       if (activeConnId) syncActiveConn();
@@ -105,6 +144,92 @@ export function initLogin() {
     if (file) importFileZilla(file);
     $("fz-file").value = "";
   });
+
+  // ~/.ssh/config içe aktarma
+  if ($("import-ssh")) $("import-ssh").addEventListener("click", () => $("ssh-file").click());
+  if ($("ssh-file")) $("ssh-file").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) importSshConfig(file);
+    $("ssh-file").value = "";
+  });
+}
+
+// ---- ~/.ssh/config içe aktarma ----
+// Host blokları → kayıtlı sunucular. Parola/anahtar içermez (bağlanırken girilir);
+// ProxyJump varsa atlama sunucusu (host/kullanıcı/port) olarak alınır.
+function parseProxyJump(v) {
+  // [user@]host[:port]  (zincir varsa ilk atlamayı al)
+  const first = String(v).split(",")[0].trim();
+  if (!first) return null;
+  let user = "", host = first, port = 22;
+  const at = host.indexOf("@");
+  if (at >= 0) { user = host.slice(0, at); host = host.slice(at + 1); }
+  const col = host.lastIndexOf(":");
+  if (col >= 0 && /^\d+$/.test(host.slice(col + 1))) { port = Number(host.slice(col + 1)); host = host.slice(0, col); }
+  if (!host) return null;
+  return { host, port, username: user };
+}
+
+function parseSshConfig(text) {
+  const out = [];
+  let cur = null;
+  const flush = () => {
+    if (cur && !/[*?]/.test(cur.alias)) {
+      const host = cur.host || cur.alias; // HostName yoksa takma adı host kabul et
+      if (host) out.push({
+        name: cur.alias,
+        host,
+        port: cur.port || 22,
+        username: cur.user || "root",
+        protocol: "sftp",
+        auth: "key",
+        jump: cur.jump || undefined,
+      });
+    }
+    cur = null;
+  };
+  for (let raw of text.split("\n")) {
+    const line = raw.replace(/#.*$/, "").trim();
+    if (!line) continue;
+    const m = line.match(/^(\S+)\s+(.+)$/);
+    if (!m) continue;
+    const key = m[1].toLowerCase();
+    const val = m[2].trim();
+    if (key === "host") {
+      flush();
+      // "Host a b" → ilk takma adı kullan
+      const alias = val.split(/\s+/)[0];
+      cur = { alias, host: "", port: 0, user: "", jump: null };
+    } else if (cur) {
+      if (key === "hostname") cur.host = val;
+      else if (key === "port") cur.port = Number(val) || 0;
+      else if (key === "user") cur.user = val;
+      else if (key === "proxyjump") cur.jump = parseProxyJump(val);
+    }
+  }
+  flush();
+  return out.filter((s) => s.host);
+}
+
+async function importSshConfig(file) {
+  const { showLoading } = await import("./dom.js");
+  showLoading(true);
+  try {
+    const text = await file.text();
+    const servers = parseSshConfig(text);
+    if (!servers.length) { toast("Dosyada içe aktarılacak Host bulunamadı.", true); return; }
+    let ok = 0;
+    for (const srv of servers) {
+      try { await api("servers", { method: "POST", json: srv }); ok++; }
+      catch (e) { console.warn("İçe aktarılamadı:", srv.host, e.message); }
+    }
+    await renderSavedServers();
+    toast(`SSH config'ten ${ok}/${servers.length} sunucu içe aktarıldı (kimlik bilgisi bağlanırken istenir).`);
+  } catch (e) {
+    toast("İçe aktarma hatası: " + e.message, true);
+  } finally {
+    showLoading(false);
+  }
 }
 
 // ---- FileZilla içe aktarma ----

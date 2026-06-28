@@ -7,7 +7,12 @@
 const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage, systemPreferences } = require("electron");
 const path = require("path");
 const fs = require("fs");
-const { autoUpdater } = require("electron-updater");
+
+// electron-updater require'ı başlangıçta hata verirse uygulamayı öldürmesin
+// (otomatik güncelleme yoksa uygulama yine de açılır).
+let autoUpdater = null;
+try { ({ autoUpdater } = require("electron-updater")); }
+catch (_) {}
 
 // Linux'ta paketlenmiş uygulamada chrome-sandbox çoğu kez SUID/izin sorunundan
 // uygulamanın hiç açılmamasına yol açar; bu platformda sandbox'ı kapat.
@@ -148,7 +153,7 @@ function formatNotes(notes) {
 }
 
 function wireAutoUpdater() {
-  if (updaterWired) return;
+  if (updaterWired || !autoUpdater) return;
   updaterWired = true;
   autoUpdater.autoDownload = false;          // indirmeyi kullanıcı onaylasın
   autoUpdater.autoInstallOnAppQuit = true;   // indirildiyse çıkışta sessizce kur
@@ -373,6 +378,7 @@ ipcMain.handle("app:check-update", async (_e, opts) => {
   }
   try {
     wireAutoUpdater();
+    if (!autoUpdater) return { ok: false, packaged: true, current: app.getVersion(), error: "Otomatik güncelleme bu derlemede yok." };
     autoUpdater.checkForUpdates(); // sonuç olayları (update:event) ile akar
     return { ok: true, packaged: true, current: app.getVersion() };
   } catch (e) {
@@ -388,6 +394,7 @@ async function createWindow() {
     httpServer = started.server;
     port = started.port;
   } catch (e) {
+    logCrash("startServer-fail", e);
     dialog.showErrorBox(
       "PortPilot başlatılamadı",
       "Yerel sunucu başlatılamadı:\n\n" + (e && e.stack || e) + "\n\nLütfen bu hatayı bildirin."

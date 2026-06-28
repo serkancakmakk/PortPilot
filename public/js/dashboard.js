@@ -179,6 +179,7 @@ export async function loadDashboard() {
     ["Sunucu", i.host || "—"],
     ["Kullanıcı", i.username || "—"],
     ["Protokol", (i.protocol || "").toUpperCase() + (i.port ? " · " + i.port : "")],
+    ...(i.via ? [["Atlama sunucusu", "🛡️ " + i.via]] : []),
     ["Bağlı süre", conn && conn.connectedAt ? fmtUptime(Math.floor((Date.now() - conn.connectedAt) / 1000)) : "—"],
     ["Geçerli klasör", cwd || "/"],
   ];

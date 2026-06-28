@@ -54,6 +54,8 @@ const DICT = {
     "sys.tab.users": "👥 Kullanıcılar",
     "sys.tab.ssh": "🔑 SSH",
     "sys.tab.tunnel": "🚇 Tünel",
+    "sys.tab.firewall": "🔥 Firewall",
+    "sys.tab.web": "🌐 Web",
     "sys.tab.diskusage": "Disk Analizi",
     "sys.tab.log": "Log",
     // Dashboard kart başlıkları
@@ -130,6 +132,8 @@ const DICT = {
     "sys.tab.users": "👥 Users",
     "sys.tab.ssh": "🔑 SSH",
     "sys.tab.tunnel": "🚇 Tunnel",
+    "sys.tab.firewall": "🔥 Firewall",
+    "sys.tab.web": "🌐 Web",
     "sys.tab.diskusage": "Disk Usage",
     "sys.tab.log": "Log",
     "dash.cpu": "CPU Load",

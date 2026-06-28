@@ -271,6 +271,42 @@ export function showSearchResults(query, items, truncated) {
   });
 }
 
+// İçerik araması (grep) sonuçları: dosya · satır · eşleşen metin; tıkla → düzenleyicide aç
+export function showContentResults(query, items, truncated) {
+  let ov = $("search-results");
+  if (!ov) {
+    ov = document.createElement("div");
+    ov.id = "search-results";
+    ov.className = "sr-overlay";
+    document.body.appendChild(ov);
+  }
+  const rows = (items || []).map((it) => {
+    const parent = it.path.replace(/\/[^/]+$/, "") || "/";
+    return `<div class="sr-row sr-crow" data-path="${escapeAttr(it.path)}" data-parent="${escapeAttr(parent)}" data-line="${it.line}">
+      <span class="sr-ico">📄</span>
+      <span class="sr-cmain">
+        <span class="sr-cline"><b>${escapeHtml(it.name)}</b> <span class="sr-cln">:${it.line}</span> <span class="sr-cpath">${escapeHtml(it.path)}</span></span>
+        <code class="sr-ctext">${escapeHtml(it.text || "")}</code>
+      </span>
+    </div>`;
+  }).join("");
+  ov.innerHTML = `<div class="sr-box">
+    <div class="sr-head"><b>“${escapeHtml(query)}” içerik sonuçları (${(items || []).length}${truncated ? "+" : ""})</b><button type="button" class="sr-close" title="Kapat">✕</button></div>
+    <div class="sr-list">${rows || '<div class="sr-empty">Eşleşme yok.</div>'}</div>
+  </div>`;
+  ov.hidden = false;
+  ov.querySelector(".sr-close").onclick = () => { ov.hidden = true; };
+  ov.onclick = (e) => { if (e.target === ov) ov.hidden = true; };
+  ov.querySelectorAll(".sr-crow").forEach((r) => {
+    r.onclick = () => {
+      ov.hidden = true;
+      const path = r.dataset.path;
+      const name = path.split("/").pop();
+      import("./editor.js").then((m) => m.editFile({ name, type: "file" }, path));
+    };
+  });
+}
+
 export function syncCheckState() {
   const rows = $("file-area").querySelectorAll(".row-check");
   const checked = $("file-area").querySelectorAll(".row-check:checked");

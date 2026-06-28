@@ -1,13 +1,14 @@
 import { $, toast } from "./dom.js";
 import { confirmDialog } from "./dialog.js";
+import { t } from "./i18n.js";
 
 let updateChecking = false;
 
+// Buton etiketini (.upd-label span'i) güncelle. Metin verilmezse varsayılan
+// "Güncellemeleri Denetle"ye (mevcut dilde) döner.
 function setUpdateLabel(text) {
-  const btn = $("btn-update");
-  if (!btn) return;
-  btn.childNodes.forEach((n) => { if (n.nodeType === 3) n.textContent = ""; });
-  btn.insertBefore(document.createTextNode(" " + text), btn.querySelector(".upd-dot"));
+  const label = document.querySelector("#btn-update .upd-label");
+  if (label) label.textContent = text != null ? text : t("nav.update");
 }
 
 async function runUpdateCheck(silent) {
@@ -32,7 +33,7 @@ async function runUpdateCheck(silent) {
   } finally {
     updateChecking = false;
     if (btn && !silent) btn.classList.remove("checking");
-    setUpdateLabel("Güncellemeleri Denetle");
+    setUpdateLabel();
   }
 }
 
@@ -59,12 +60,12 @@ function handleUpdateEvent(p) {
     case "latest":
       if (dot) dot.hidden = true;
       btn.classList.remove("has-update", "checking");
-      setUpdateLabel("Güncellemeleri Denetle");
+      setUpdateLabel();
       if (!p.silent) toast("En güncel sürümdesin.");
       break;
     case "error":
       btn.classList.remove("checking");
-      setUpdateLabel("Güncellemeleri Denetle");
+      setUpdateLabel();
       if (!p.silent) toast("Güncelleme hatası: " + (p.error || "bilinmiyor"), true);
       break;
   }

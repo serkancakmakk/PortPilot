@@ -26,6 +26,17 @@ router.post("/api/servers", (req, res) => {
     passphrase: b.passphrase || "",
     group: (b.group || "").toString().trim(),
   };
+  // Atlama sunucusu (jump) — yalnızca SFTP ve host+kullanıcı doluysa
+  if (server.protocol === "sftp" && b.jump && b.jump.host && b.jump.username) {
+    server.jump = {
+      host: b.jump.host,
+      port: Number(b.jump.port) || 22,
+      username: b.jump.username,
+      password: b.jump.password || "",
+      privateKey: b.jump.privateKey || "",
+      passphrase: b.jump.passphrase || "",
+    };
+  }
   const idx = servers.findIndex(
     (s) =>
       s.host === server.host &&

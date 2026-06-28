@@ -104,6 +104,42 @@
         </div>
       </div>
 
+      <!-- Atlama sunucusu (Jump Host / Bastion) — opsiyonel, yalnızca SFTP -->
+      <div class="jump-section" id="jump-section">
+        <button type="button" id="jump-toggle" class="jump-toggle" aria-expanded="false">
+          <span class="jump-chevron">▸</span> 🛡️ Atlama sunucusu (Jump Host) <span class="jump-opt">opsiyonel</span>
+        </button>
+        <div id="jump-body" class="jump-body" hidden>
+          <p class="jump-hint">Hedefe bir <b>bastion / ara sunucu</b> üzerinden bağlan (ProxyJump). Yalnızca SFTP.</p>
+          <div class="row g-2 mb-2">
+            <div class="col-8">
+              <label class="form-label login-label">Atlama sunucusu adresi</label>
+              <input name="jumpHost" class="form-control" placeholder="bastion.ornek.com" autocomplete="off" />
+            </div>
+            <div class="col-4">
+              <label class="form-label login-label">Port</label>
+              <input name="jumpPort" class="form-control" value="22" />
+            </div>
+          </div>
+          <div class="mb-2">
+            <label class="form-label login-label">Atlama kullanıcı adı</label>
+            <input name="jumpUsername" class="form-control" placeholder="root" autocomplete="off" />
+          </div>
+          <div class="auth-tabs" id="jump-auth-tabs">
+            <button type="button" class="auth-tab" data-jauth="password" aria-selected="true">Parola</button>
+            <button type="button" class="auth-tab" data-jauth="key" aria-selected="false">SSH Anahtarı</button>
+          </div>
+          <div class="mb-2" data-jpane="password">
+            <input name="jumpPassword" type="password" class="form-control" placeholder="Atlama parolası" autocomplete="off" />
+          </div>
+          <div data-jpane="key" hidden>
+            <textarea name="jumpPrivateKey" rows="3" class="form-control font-monospace" style="resize:none"
+                      placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"></textarea>
+            <input name="jumpPassphrase" type="password" class="form-control mt-2" placeholder="Anahtar parolası (opsiyonel)" autocomplete="off" />
+          </div>
+        </div>
+      </div>
+
       <!-- Kaydet seçenekleri -->
       <div class="form-check mb-2">
         <input type="checkbox" id="save-server" class="form-check-input" />
@@ -136,6 +172,11 @@
           📥 FileZilla'dan içe aktar (sitemanager.xml)
         </button>
         <input type="file" id="fz-file" accept=".xml,text/xml" hidden />
+        <button type="button" id="import-ssh" class="login-link"
+                title="~/.ssh/config dosyasını seç ve sunucuları içe aktar">
+          📥 SSH config'ten içe aktar (~/.ssh/config)
+        </button>
+        <input type="file" id="ssh-file" hidden />
         <button type="button" id="open-downloads" class="login-link">
           <span class="nav-ico-wrap" data-icon="monitor"></span> Masaüstü uygulamasını indir (Mac · Windows · Linux)
         </button>
@@ -162,27 +203,32 @@
   <div id="explorer" hidden>
     <!-- Sol kenar çubuğu -->
     <aside class="sidebar">
-      <div class="brand"><img src="logo.png" class="brand-img sm" alt="" /> PortPilot <span class="ver">v1</span></div>
-      <div class="side-label" data-i18n="side.quickAccess">Hızlı Erişim</div>
-      <nav class="quick" id="quick-links"></nav>
-
-      <div id="favorites-wrap" hidden>
-        <div class="side-label" style="margin-top:14px" data-i18n="side.favorites">Sık Kullanılanlar</div>
-        <nav class="quick" id="favorites"></nav>
+      <div class="brand">
+        <img src="logo.png" class="brand-img sm" alt="" /> <span class="brand-name">PortPilot</span> <span class="ver">v1</span>
+        <button id="btn-sidebar-collapse" class="side-collapse" title="Kenar çubuğunu daralt" aria-label="Kenar çubuğunu daralt"><span class="nav-ico-wrap" data-icon="arrow-left"></span></button>
       </div>
+      <div class="side-scroll">
+        <div class="side-label" data-i18n="side.quickAccess">Hızlı Erişim</div>
+        <nav class="quick" id="quick-links"></nav>
 
-      <div class="side-label" style="margin-top:14px" data-i18n="side.tools">Araçlar</div>
-      <nav class="quick">
-        <a id="btn-dashboard"><span class="q-ico" data-icon="gauge"></span> <span data-i18n="nav.dashboard">Sunucu Paneli</span></a>
-        <a id="btn-terminal"><span class="q-ico" data-icon="terminal"></span> <span data-i18n="nav.terminal">Sunucu Terminali</span></a>
-        <a id="btn-docker"><span class="q-ico" data-icon="container"></span> <span data-i18n="nav.docker">Docker Yönetimi</span></a>
-        <a id="btn-systools"><span class="q-ico" data-icon="activity"></span> <span data-i18n="nav.serverTools">Sunucu Araçları</span></a>
-        <a id="btn-audit"><span class="q-ico">📜</span> <span data-i18n="nav.audit">İşlem Günlüğü</span></a>
-        <a id="btn-whatsnew"><span class="q-ico" data-icon="gauge"></span> <span data-i18n="nav.whatsnew">Sürüm Notları</span></a>
-        <a id="btn-theme"><span class="q-ico theme-ico">🌙</span> <span class="theme-label">Karanlık Tema</span></a>
-        <a id="btn-lang"><span class="q-ico lang-ico">🇬🇧</span> <span class="lang-label">English</span></a>
-        <a id="btn-update" hidden><span class="q-ico" data-icon="refresh"></span> <span data-i18n="nav.update">Güncellemeleri Denetle</span><span class="upd-dot" hidden></span></a>
-      </nav>
+        <div id="favorites-wrap" hidden>
+          <div class="side-label" style="margin-top:14px" data-i18n="side.favorites">Sık Kullanılanlar</div>
+          <nav class="quick" id="favorites"></nav>
+        </div>
+
+        <div class="side-label" style="margin-top:14px" data-i18n="side.tools">Araçlar</div>
+        <nav class="quick">
+          <a id="btn-dashboard"><span class="q-ico" data-icon="gauge"></span> <span data-i18n="nav.dashboard">Sunucu Paneli</span></a>
+          <a id="btn-terminal"><span class="q-ico" data-icon="terminal"></span> <span data-i18n="nav.terminal">Sunucu Terminali</span></a>
+          <a id="btn-docker"><span class="q-ico" data-icon="container"></span> <span data-i18n="nav.docker">Docker Yönetimi</span></a>
+          <a id="btn-systools"><span class="q-ico" data-icon="activity"></span> <span data-i18n="nav.serverTools">Sunucu Araçları</span></a>
+          <a id="btn-audit"><span class="q-ico">📜</span> <span data-i18n="nav.audit">İşlem Günlüğü</span></a>
+          <a id="btn-whatsnew"><span class="q-ico" data-icon="gauge"></span> <span data-i18n="nav.whatsnew">Sürüm Notları</span></a>
+          <a id="btn-theme"><span class="q-ico theme-ico">🌙</span> <span class="theme-label">Karanlık Tema</span></a>
+          <a id="btn-lang"><span class="q-ico lang-ico">🇬🇧</span> <span class="lang-label">English</span></a>
+          <a id="btn-update" hidden><span class="q-ico" data-icon="refresh"></span> <span class="upd-label" data-i18n="nav.update">Güncellemeleri Denetle</span><span class="upd-dot" hidden></span></a>
+        </nav>
+      </div>
 
       <div class="side-disk" id="side-disk"></div>
       <button id="btn-disconnect" class="side-disconnect"><span class="nav-ico-wrap" data-icon="logout"></span> <span data-i18n="nav.disconnect">Bağlantıyı Kes</span></button>
@@ -196,7 +242,7 @@
     <!-- Bağlı sunucular: sekmeler -->
     <div class="conn-tabs" id="conn-tabs"></div>
     <div class="toolbar d-flex flex-wrap align-items-center gap-2">
-      <button id="btn-sidebar" class="btn d-lg-none" title="Menü" data-icon="list"></button>
+      <button id="btn-sidebar" class="btn btn-sidebar-toggle" title="Kenar çubuğunu aç/kapat" data-icon="list"></button>
       <div class="nav-group" role="group">
         <button id="btn-back" class="btn" title="Geri" data-icon="arrow-left"></button>
         <button id="btn-up" class="btn" title="Üst klasör" data-icon="arrow-up"></button>
@@ -370,6 +416,8 @@
           <button class="dk-tab" data-systab="users" data-i18n="sys.tab.users">👥 Kullanıcılar</button>
           <button class="dk-tab" data-systab="ssh" data-i18n="sys.tab.ssh">🔑 SSH</button>
           <button class="dk-tab" data-systab="tunnel" data-i18n="sys.tab.tunnel">🚇 Tünel</button>
+          <button class="dk-tab" data-systab="ufw" data-i18n="sys.tab.firewall">🔥 Firewall</button>
+          <button class="dk-tab" data-systab="web" data-i18n="sys.tab.web">🌐 Web</button>
           <button class="dk-tab" data-systab="diskusage" data-i18n="sys.tab.diskusage">Disk Analizi</button>
           <button class="dk-tab" data-systab="log" data-i18n="sys.tab.log">Log</button>
         </div>

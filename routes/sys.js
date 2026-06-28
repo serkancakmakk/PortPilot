@@ -25,6 +25,186 @@ function notSupported(res) {
   return res.json({ available: false });
 }
 
+// ---- Web sunucusu (Nginx / Apache) tespit + site/vhost listesi ----
+router.get("/api/sys/web", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return notSupported(res);
+  const script = [
+    'echo "##NGINX##"',
+    'if command -v nginx >/dev/null 2>&1; then',
+    '  echo "installed=1"',
+    '  echo "active=$(systemctl is-active nginx 2>/dev/null)"',
+    '  echo "version=$(nginx -v 2>&1 | sed \'s#.*nginx/##; s#nginx version: ##\')"',
+    '  echo "##AVAIL##"; ls -1 /etc/nginx/sites-available/ 2>/dev/null',
+    '  echo "##ENABLED##"; ls -1 /etc/nginx/sites-enabled/ 2>/dev/null',
+    'fi',
+    'echo "##APACHE##"',
+    'if command -v apache2 >/dev/null 2>&1; then',
+    '  echo "installed=1"; echo "bin=apache2"',
+    '  echo "active=$(systemctl is-active apache2 2>/dev/null)"',
+    '  echo "version=$(apache2 -v 2>/dev/null | sed -n \'1s#.*Apache/##; 1s# .*##p\')"',
+    '  echo "##AVAIL##"; ls -1 /etc/apache2/sites-available/ 2>/dev/null',
+    '  echo "##ENABLED##"; ls -1 /etc/apache2/sites-enabled/ 2>/dev/null',
+    'elif command -v httpd >/dev/null 2>&1; then',
+    '  echo "installed=1"; echo "bin=httpd"',
+    '  echo "active=$(systemctl is-active httpd 2>/dev/null)"',
+    '  echo "version=$(httpd -v 2>/dev/null | sed -n \'1s#.*Apache/##; 1s# .*##p\')"',
+    '  echo "##AVAIL##"; ls -1 /etc/httpd/conf.d/ 2>/dev/null',
+    '  echo "##ENABLED##"; ls -1 /etc/httpd/conf.d/ 2>/dev/null',
+    'fi',
+  ].join("; ");
+  try {
+    const r = await runCmd(s, script);
+    res.json({ available: true, servers: parseWeb(r.out || "") });
+  } catch (e) { res.json({ available: false, error: e.message }); }
+});
+
+function parseWeb(out) {
+  const blocks = { nginx: "", apache: "" };
+  let cur = null;
+  for (const raw of out.split("\n")) {
+    if (raw.startsWith("##NGINX##")) { cur = "nginx"; continue; }
+    if (raw.startsWith("##APACHE##")) { cur = "apache"; continue; }
+    if (cur) blocks[cur] += raw + "\n";
+  }
+  const servers = [];
+  const dirFor = { nginx: "/etc/nginx/sites-available", apache: "/etc/apache2/sites-available" };
+  for (const kind of ["nginx", "apache"]) {
+    const b = blocks[kind];
+    if (!/installed=1/.test(b)) continue;
+    const parts = b.split(/##AVAIL##\n?/);
+    const head = parts[0] || "";
+    const rest = (parts[1] || "").split(/##ENABLED##\n?/);
+    const availNames = (rest[0] || "").split("\n").map((x) => x.trim()).filter(Boolean);
+    const enabledNames = new Set((rest[1] || "").split("\n").map((x) => x.trim()).filter(Boolean));
+    const get = (k) => { const m = head.match(new RegExp("^" + k + "=(.*)$", "m")); return m ? m[1].trim() : ""; };
+    const bin = get("bin") || (kind === "nginx" ? "nginx" : "apache2");
+    const baseDir = kind === "apache"
+      ? (bin === "httpd" ? "/etc/httpd/conf.d" : "/etc/apache2/sites-available")
+      : dirFor.nginx;
+    const sites = availNames
+      .filter((n) => !n.startsWith("##"))
+      .map((name) => ({
+        name,
+        enabled: kind === "apache" && bin === "httpd" ? true : enabledNames.has(name),
+        path: `${baseDir}/${name}`,
+      }));
+    servers.push({
+      kind, bin, installed: true,
+      active: get("active") || "unknown",
+      version: get("version") || "",
+      toggleable: !(kind === "apache" && bin === "httpd"), // httpd conf.d aç/kapat yok
+      sites,
+    });
+  }
+  return servers;
+}
+
+// ---- Web sunucusu işlemi: enable/disable/reload/restart/test ----
+const SITE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/;
+router.post("/api/sys/web-action", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return res.status(400).json({ error: "Bu bağlantıda kullanılamaz." });
+  const kind = req.body.kind === "apache" ? "apache" : "nginx";
+  const bin = req.body.bin === "httpd" ? "httpd" : (kind === "apache" ? "apache2" : "nginx");
+  const action = String(req.body.action || "");
+  const svc = kind === "nginx" ? "nginx" : bin;
+  let cmd = null;
+
+  if (action === "test") {
+    cmd = kind === "nginx" ? "nginx -t" : `${bin === "httpd" ? "httpd" : "apache2ctl"} configtest`;
+  } else if (action === "reload" || action === "restart") {
+    cmd = `systemctl ${action} ${svc}`;
+  } else if (action === "enable" || action === "disable") {
+    const site = String(req.body.site || "");
+    if (!SITE_NAME.test(site)) return res.status(400).json({ error: "Geçersiz site adı." });
+    if (kind === "nginx") {
+      cmd = action === "enable"
+        ? `ln -sf /etc/nginx/sites-available/${shQuote(site)} /etc/nginx/sites-enabled/${shQuote(site)}`
+        : `rm -f /etc/nginx/sites-enabled/${shQuote(site)}`;
+    } else {
+      cmd = `${action === "enable" ? "a2ensite" : "a2dissite"} ${shQuote(site)}`;
+    }
+  } else {
+    return res.status(400).json({ error: "Geçersiz işlem." });
+  }
+
+  try {
+    const r = await runCmd(s, `sudo -n ${cmd} 2>&1 || ${cmd} 2>&1`);
+    const txt = (r.out + r.err);
+    const low = txt.toLowerCase();
+    const denied = low.includes("permission denied") || low.includes("must be run as root") || low.includes("you need to be root");
+    if (denied) return res.status(400).json({ error: "Yetki gerekiyor (root ya da parolasız sudo)." });
+    // test başarısızsa code != 0 olur; çıktıyı kullanıcıya göster
+    res.json({ ok: r.code === 0, code: r.code, output: txt.trim().slice(0, 1200) });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
+// ---- Firewall (ufw) durumu + kuralları ----
+router.get("/api/sys/ufw", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return notSupported(res);
+  try {
+    // ufw kurulu mu? Kuralları numaralı al (root/sudo gerekir)
+    const r = await runCmd(s,
+      "command -v ufw >/dev/null 2>&1 || { echo '##NOUFW##'; exit 0; }; " +
+      "sudo -n ufw status numbered 2>/dev/null || ufw status numbered 2>/dev/null || echo '##NOPERM##'");
+    const out = r.out || "";
+    if (out.includes("##NOUFW##")) return res.json({ available: true, installed: false });
+    if (out.includes("##NOPERM##") || !out.trim())
+      return res.json({ available: true, installed: true, permission: false });
+
+    const active = /Status:\s*active/i.test(out);
+    const rules = [];
+    for (const line of out.split("\n")) {
+      // [ 1] 22/tcp                     ALLOW IN    Anywhere
+      const m = line.match(/^\s*\[\s*(\d+)\]\s+(.+?)\s{2,}(ALLOW|DENY|REJECT|LIMIT)\s+(IN|OUT)?\s*(.*)$/i);
+      if (!m) continue;
+      rules.push({
+        num: Number(m[1]),
+        to: m[2].trim(),
+        action: m[3].toUpperCase(),
+        dir: (m[4] || "IN").toUpperCase(),
+        from: (m[5] || "").trim() || "Anywhere",
+      });
+    }
+    res.json({ available: true, installed: true, permission: true, active, rules });
+  } catch (e) { res.json({ available: false, error: e.message }); }
+});
+
+// ---- Firewall (ufw) işlemi: allow/deny/delete/enable/disable ----
+const UFW_VALUE = /^[a-zA-Z0-9][a-zA-Z0-9/:._-]{0,40}$/; // port, port/proto, servis adı
+router.post("/api/sys/ufw-action", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return res.status(400).json({ error: "Bu bağlantıda kullanılamaz." });
+  const action = String(req.body.action || "");
+  let cmd = null;
+  if (action === "allow" || action === "deny") {
+    const v = String(req.body.value || "").trim();
+    if (!UFW_VALUE.test(v)) return res.status(400).json({ error: "Geçersiz port/servis." });
+    cmd = `ufw ${action} ${shQuote(v)}`;
+  } else if (action === "delete") {
+    const n = parseInt(req.body.num, 10);
+    if (!Number.isInteger(n) || n < 1) return res.status(400).json({ error: "Geçersiz kural numarası." });
+    cmd = `yes | ufw delete ${n}`;
+  } else if (action === "enable" || action === "disable") {
+    cmd = `ufw --force ${action}`;
+  } else {
+    return res.status(400).json({ error: "Geçersiz işlem." });
+  }
+  try {
+    const r = await runCmd(s, `sudo -n ${cmd} 2>&1 || ${cmd} 2>&1`);
+    const txt = (r.out + r.err).toLowerCase();
+    if (r.code !== 0 || txt.includes("permission denied") || txt.includes("you need to be root"))
+      return res.status(400).json({ error: "Yetki gerekiyor (root ya da parolasız sudo). " + (r.out || r.err).trim().slice(0, 200) });
+    res.json({ ok: true, output: (r.out || "").trim().slice(0, 300) });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ---- Açık (dinleyen) portlar ----
 router.get("/api/sys/ports", async (req, res) => {
   const s = getSession(req, res);

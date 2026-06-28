@@ -23,6 +23,7 @@ import { initLock } from "./lock.js";
 import { initTheme } from "./theme.js";
 import { initLang } from "./i18n.js";
 import { initEditExternal, stopAllEdits } from "./edit-external.js";
+import { initCommandPalette } from "./command-palette.js";
 import { initAudit } from "./audit.js";
 import { initDualPane } from "./dual-pane.js";
 import { hideMenu, showAreaMenu, renameItem, deleteItem } from "./context-menu.js";
@@ -93,6 +94,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initWhatsNew();
   initTransferQueue();
   initEditExternal();
+  initCommandPalette();
 
   // Dış düzenleme sunucuya senkronlandığında, o klasör görüntüleniyorsa listeyi tazele
   document.addEventListener("external-edit-synced", (e) => {
@@ -102,14 +104,36 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Küçük ekran: sidebar aç/kapa (off-canvas)
+  // Sidebar aç/kapa: masaüstünde daraltma (kalıcı), küçük ekranda off-canvas
   const sb = document.querySelector(".sidebar");
   const bd = $("sidebar-backdrop");
+  const explorer = $("explorer");
+  const COLLAPSE_KEY = "sidebarCollapsed";
+  const isDesktop = () => window.matchMedia("(min-width: 993px)").matches;
+
   const openSidebar = (on) => {
     if (sb) sb.classList.toggle("open", on);
     if (bd) bd.hidden = !on;
   };
-  if ($("btn-sidebar")) $("btn-sidebar").addEventListener("click", () => openSidebar(!sb.classList.contains("open")));
+  const setCollapsed = (on) => {
+    if (explorer) explorer.classList.toggle("sidebar-collapsed", on);
+    try { localStorage.setItem(COLLAPSE_KEY, on ? "1" : "0"); } catch (_) {}
+  };
+  const toggleCollapsed = () => setCollapsed(!explorer.classList.contains("sidebar-collapsed"));
+
+  // Açılışta masaüstü daraltma durumunu geri yükle
+  if (explorer && localStorage.getItem(COLLAPSE_KEY) === "1") explorer.classList.add("sidebar-collapsed");
+
+  // Toolbar düğmesi: masaüstünde daralt/genişlet, küçük ekranda off-canvas aç/kapat
+  if ($("btn-sidebar")) $("btn-sidebar").addEventListener("click", () => {
+    if (isDesktop()) toggleCollapsed();
+    else openSidebar(!sb.classList.contains("open"));
+  });
+  // Sidebar içindeki daralt düğmesi (yalnızca masaüstünde mantıklı)
+  if ($("btn-sidebar-collapse")) $("btn-sidebar-collapse").addEventListener("click", () => {
+    if (isDesktop()) setCollapsed(true);
+    else openSidebar(false);
+  });
   if (bd) bd.addEventListener("click", () => openSidebar(false));
   if (sb) sb.addEventListener("click", (e) => { if (e.target.closest("a, #btn-disconnect")) openSidebar(false); });
 

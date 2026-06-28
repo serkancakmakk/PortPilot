@@ -857,6 +857,41 @@ router.get("/api/search", async (req, res) => {
   } catch (e) { res.status(400).json({ error: e.message }); }
 });
 
+// ---- İçerik araması (grep): dosya içinde metin ara ----
+router.get("/api/search-content", async (req, res) => {
+  const s = getSession(req, res);
+  if (!s) return;
+  if (!hasExec(s)) return res.status(400).json({ error: "İçerik araması yalnızca SFTP (SSH) bağlantılarında çalışır." });
+  const dir = resolveRemote("/", req.query.path || "/");
+  const q = String(req.query.q || "").trim();
+  if (!q) return res.status(400).json({ error: "Arama terimi gerekli." });
+  const ci = req.query.ci === "0" ? "" : "i"; // varsayılan: büyük/küçük harf duyarsız
+  try {
+    // -r özyinelemeli, -I ikili dosyaları atla, -n satır no, -F sabit dize, -e desen
+    const r = await runCmd(
+      s,
+      `grep -rn${ci}F --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=.cache ` +
+      `-e ${shQuote(q)} ${shQuote(dir)} 2>/dev/null | head -n 500`
+    );
+    const items = [];
+    for (const line of r.out.split("\n")) {
+      if (!line) continue;
+      // biçim: yol:satır:metin  (yol ve satırı ilk iki ":"den ayır)
+      const i1 = line.indexOf(":");
+      if (i1 < 0) continue;
+      const i2 = line.indexOf(":", i1 + 1);
+      if (i2 < 0) continue;
+      const path = line.slice(0, i1);
+      const ln = Number(line.slice(i1 + 1, i2));
+      let text = line.slice(i2 + 1);
+      if (text.length > 300) text = text.slice(0, 300) + "…";
+      if (!path || !Number.isFinite(ln)) continue;
+      items.push({ path, line: ln, name: path.split("/").pop(), text });
+    }
+    res.json({ items, truncated: items.length >= 500 });
+  } catch (e) { res.status(400).json({ error: e.message }); }
+});
+
 // ---- Sil ----
 // İlerlemeli (akıtmalı) silme: NDJSON satırları → {total} ... {done} ... {ok}/{error}
 router.post("/api/delete-stream", async (req, res) => {

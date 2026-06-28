@@ -266,6 +266,17 @@ export function maybeSaveServer(body) {
     passphrase: savePass && isKey ? body.passphrase : "",
     group: $("save-group") ? $("save-group").value.trim() : "",
   };
+  // Atlama sunucusu (jump) — varsa kaydet; kimlik bilgileri yalnızca "sakla" işaretliyse
+  if (body.jump && body.jump.host && body.jump.username) {
+    server.jump = {
+      host: body.jump.host,
+      port: body.jump.port,
+      username: body.jump.username,
+      password: savePass ? body.jump.password : "",
+      privateKey: savePass ? body.jump.privateKey : "",
+      passphrase: savePass ? body.jump.passphrase : "",
+    };
+  }
   api("servers", { method: "POST", json: server }).catch((e) =>
     console.warn("Sunucu kaydedilemedi:", e.message),
   );
@@ -284,6 +295,30 @@ export function selectServer(s) {
   f.passphrase.value = s.passphrase || "";
   const auth = s.protocol && s.protocol !== "sftp" ? "password" : s.auth;
   document.querySelector(`[data-auth="${auth}"]`).click();
+
+  // Atlama sunucusu (jump) alanlarını temizle, kayıtta varsa doldur ve bölümü aç
+  ["jumpHost", "jumpUsername", "jumpPassword", "jumpPrivateKey", "jumpPassphrase"].forEach((n) => { if (f[n]) f[n].value = ""; });
+  if (f.jumpPort) f.jumpPort.value = "22";
+  if (s.jump && s.jump.host && f.jumpHost) {
+    f.jumpHost.value = s.jump.host;
+    f.jumpPort.value = s.jump.port || 22;
+    f.jumpUsername.value = s.jump.username || "";
+    f.jumpPassword.value = s.jump.password || "";
+    f.jumpPrivateKey.value = s.jump.privateKey || "";
+    f.jumpPassphrase.value = s.jump.passphrase || "";
+    if ($("jump-body")) {
+      $("jump-body").hidden = false;
+      const ch = $("jump-toggle") && $("jump-toggle").querySelector(".jump-chevron");
+      if (ch) ch.textContent = "▾";
+      $("jump-toggle").setAttribute("aria-expanded", "true");
+    }
+    const jt = document.querySelector(`[data-jauth="${s.jump.privateKey ? "key" : "password"}"]`);
+    if (jt) jt.click();
+  } else if ($("jump-body")) {
+    $("jump-body").hidden = true;
+    const ch = $("jump-toggle") && $("jump-toggle").querySelector(".jump-chevron");
+    if (ch) ch.textContent = "▸";
+  }
   const hasCreds = !!(s.password || s.privateKey);
   if (hasCreds) {
     f.requestSubmit

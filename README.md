@@ -91,11 +91,15 @@ Bağlantılar ve dosya işlemleri zaman damgalı kayıt.
 - **Disk analizi** (`du` ile klasör bazında, oran çubuğu), **log kuyruğu** (tail)
 - **Cron yönetimi** (crontab oku/düzenle/kaydet) + **sunucudaki tüm cron'ları tara** (`/etc/crontab`, `cron.d`, diğer kullanıcılar, periyodik betikler, **systemd timer**'ları — okunaklı zamanlama açıklamasıyla)
 - **SSH tüneli** (yerel port yönlendirme): sunucu ağındaki bir servisi `localhost:port`'a güvenle taşı — DB/dahili panel için tek tıkla tünel, canlı trafik göstergesi
+- **Web sunucusu (Nginx / Apache):** site/vhost listele, **etkinleştir/kapat**, yapılandırma **test** (`nginx -t`), **reload/restart**, vhost'u düzenleyicide aç
+- **Firewall (ufw):** numaralı kuralları gör, **izin ver/engelle**, kural sil, aç/kapat
 - **kullanıcı & grup** listesi + **chown**
 - **SSH anahtarı üret & kur** (ed25519 → `authorized_keys`, parolasız bağlantı için özel anahtarı verir)
 
 ### 🔐 Bağlantı & güvenlik
 - **SFTP / FTP / FTPS**; **parola** veya **SSH özel anahtarı** (anahtar yalnızca SFTP'de)
+- **Atlama sunucusu (Jump Host / Bastion):** hedefe bir ara sunucu üzerinden bağlan (ProxyJump) — bastion için ayrı kimlik bilgisi, kayıtlı sunucularda şifreli saklanır (yalnızca SFTP)
+- **Komut paleti (Cmd/Ctrl+K):** tüm aksiyonlar ve kayıtlı sunuculara bağlanma için hızlı, aranabilir liste
 - **Kayıtlı sunucular:** kaydet, gruplara ayır, tek tıkla bağlan; **✎ ile düzenle** (silmeden host/port/kullanıcı güncelle)
 - **Şifreli saklama:** parola/anahtar, işletim sistemi anahtarlığıyla (Electron `safeStorage`) şifrelenir — `servers.json` düz metin parola tutmaz
 - **Uygulama kilidi:** master parola (scrypt + tuz), otomatik kilit, macOS'ta **Touch ID**

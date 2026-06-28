@@ -28,6 +28,8 @@ async function loadTab() {
   if (sysTab === "users") return loadUsers();
   if (sysTab === "ssh") return loadSsh();
   if (sysTab === "tunnel") return loadTunnel();
+  if (sysTab === "ufw") return loadFirewall();
+  if (sysTab === "web") return loadWeb();
   msg("Yükleniyor…");
   let data;
   try {
@@ -242,6 +244,139 @@ async function closeTunnel(id) {
   try { await api("tunnel/close", { method: "POST", json: { id } }); await refreshTunnels(); }
   catch (e) { toast(e.message, true); }
   finally { showLoading(false); }
+}
+
+// ---- Firewall (ufw) ----
+async function loadFirewall() {
+  msg("Yükleniyor…");
+  let d;
+  try { d = await api("sys/ufw"); }
+  catch (e) { return msg("Hata: " + escapeHtml(e.message)); }
+  if (!d || !d.available)
+    return msg("Bu sunucuda kullanılamıyor (komut çalıştırma kapalı ya da FTP).");
+  if (!d.installed)
+    return msg("Bu sunucuda <b>ufw</b> kurulu değil. Kurmak için: <code>sudo apt install ufw</code>");
+  if (!d.permission)
+    return msg("Güvenlik duvarı kurallarını görmek için <b>root</b> ya da parolasız <b>sudo</b> gerekir.");
+
+  const rules = d.rules || [];
+  const badge = d.active
+    ? `<span class="ufw-badge on">● Etkin</span>`
+    : `<span class="ufw-badge off">○ Devre dışı</span>`;
+  const rows = rules.length ? rules.map((r) => {
+    const act = r.action === "DENY" || r.action === "REJECT" ? "deny" : (r.action === "LIMIT" ? "limit" : "allow");
+    return `<tr>
+      <td class="ufw-num">${r.num}</td>
+      <td><code>${escapeHtml(r.to)}</code></td>
+      <td><span class="ufw-act ${act}">${escapeHtml(r.action)}</span> ${escapeHtml(r.dir)}</td>
+      <td class="dk-sub">${escapeHtml(r.from)}</td>
+      <td><button class="btn btn-xs tbtn danger" data-ufw-del="${r.num}" title="Kuralı sil">Sil</button></td>
+    </tr>`;
+  }).join("") : `<tr><td colspan="5" class="dk-sub" style="padding:12px">Tanımlı kural yok.</td></tr>`;
+
+  $("systools-body").innerHTML = `
+    <div class="ufw-head">
+      ${badge}
+      <button id="ufw-toggle" class="btn btn-sm tbtn ${d.active ? "danger" : "primary"}">${d.active ? "Devre dışı bırak" : "Etkinleştir"}</button>
+      <div class="spacer" style="flex:1"></div>
+      <div class="ufw-add">
+        <input id="ufw-val" type="text" placeholder="port / port/tcp / servis (ör. 80, 443/tcp, OpenSSH)" class="ufw-input">
+        <button id="ufw-allow" class="btn btn-sm tbtn primary">İzin ver</button>
+        <button id="ufw-deny" class="btn btn-sm tbtn">Engelle</button>
+      </div>
+    </div>
+    <table class="ufw-tbl"><thead><tr><th>#</th><th>Hedef</th><th>Eylem</th><th>Kaynak</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    <div class="dk-sub" style="margin-top:10px">İşlemler root ya da parolasız sudo gerektirir. Değişiklik sonrası liste yenilenir.</div>`;
+  $("systools-status").textContent = rules.length + " kural · " + (d.active ? "etkin" : "devre dışı");
+
+  const act = async (body) => {
+    showLoading(true);
+    try { await api("sys/ufw-action", { method: "POST", json: body }); toast("Uygulandı"); loadFirewall(); }
+    catch (e) { toast(e.message, true); }
+    finally { showLoading(false); }
+  };
+  $("ufw-toggle").addEventListener("click", () => act({ action: d.active ? "disable" : "enable" }));
+  $("ufw-allow").addEventListener("click", () => { const v = $("ufw-val").value.trim(); if (v) act({ action: "allow", value: v }); });
+  $("ufw-deny").addEventListener("click", () => { const v = $("ufw-val").value.trim(); if (v) act({ action: "deny", value: v }); });
+  $("ufw-val").addEventListener("keydown", (e) => { if (e.key === "Enter") { const v = e.target.value.trim(); if (v) act({ action: "allow", value: v }); } });
+  $("systools-body").querySelectorAll("[data-ufw-del]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      if (!await confirmDialog(`#${b.dataset.ufwDel} numaralı kural silinsin mi?`, { title: "Kuralı Sil", okText: "Sil", danger: true })) return;
+      act({ action: "delete", num: Number(b.dataset.ufwDel) });
+    }));
+}
+
+// ---- Web sunucusu (Nginx / Apache) ----
+async function loadWeb() {
+  msg("Yükleniyor…");
+  let d;
+  try { d = await api("sys/web"); }
+  catch (e) { return msg("Hata: " + escapeHtml(e.message)); }
+  if (!d || !d.available)
+    return msg("Bu sunucuda kullanılamıyor (komut çalıştırma kapalı ya da FTP).");
+  const servers = d.servers || [];
+  if (!servers.length)
+    return msg("Bu sunucuda <b>Nginx</b> ya da <b>Apache</b> bulunamadı.");
+
+  $("systools-body").innerHTML = servers.map(webServerCard).join("");
+  $("systools-status").textContent = servers.map((s) => `${s.kind} (${s.active})`).join(" · ");
+
+  const doAction = async (body, okMsg) => {
+    showLoading(true);
+    try {
+      const r = await api("sys/web-action", { method: "POST", json: body });
+      if (body.action === "test") {
+        confirmDialog(`<pre style="white-space:pre-wrap;font-size:12px;margin:0">${escapeHtml(r.output || "(çıktı yok)")}</pre>`,
+          { title: r.ok ? "✅ Yapılandırma geçerli" : "❌ Yapılandırma hatası", okText: "Tamam" });
+      } else {
+        toast(r.ok ? (okMsg || "Uygulandı") : ("Hata: " + (r.output || "").slice(0, 160)), !r.ok);
+        if (r.ok) loadWeb();
+      }
+    } catch (e) { toast(e.message, true); }
+    finally { showLoading(false); }
+  };
+
+  $("systools-body").querySelectorAll("[data-web-act]").forEach((b) =>
+    b.addEventListener("click", () => doAction({
+      kind: b.dataset.kind, bin: b.dataset.bin, action: b.dataset.webAct, site: b.dataset.site || undefined,
+    }, b.dataset.ok)));
+  $("systools-body").querySelectorAll("[data-web-edit]").forEach((b) =>
+    b.addEventListener("click", () => {
+      const path = b.dataset.webEdit;
+      import("./editor.js").then((m) => m.editFile({ name: path.split("/").pop(), type: "file" }, path));
+    }));
+}
+
+function webServerCard(srv) {
+  const isNginx = srv.kind === "nginx";
+  const icon = isNginx ? "🟢" : "🪶";
+  const on = srv.active === "active";
+  const sites = (srv.sites || []).map((s) => `
+    <tr>
+      <td><code>${escapeHtml(s.name)}</code></td>
+      <td>${s.enabled ? '<span class="web-en on">etkin</span>' : '<span class="web-en off">kapalı</span>'}</td>
+      <td class="web-acts">
+        <button class="btn btn-xs tbtn" data-web-edit="${escapeAttr(s.path)}" title="Yapılandırmayı düzenle">✎ Düzenle</button>
+        ${srv.toggleable ? `<button class="btn btn-xs tbtn ${s.enabled ? "danger" : "primary"}"
+          data-web-act="${s.enabled ? "disable" : "enable"}" data-kind="${srv.kind}" data-bin="${escapeAttr(srv.bin)}" data-site="${escapeAttr(s.name)}"
+          data-ok="${s.enabled ? "Site kapatıldı" : "Site etkinleştirildi"}">${s.enabled ? "Kapat" : "Etkinleştir"}</button>` : ""}
+      </td>
+    </tr>`).join("") || `<tr><td colspan="3" class="dk-sub" style="padding:10px">Site bulunamadı.</td></tr>`;
+
+  return `
+    <div class="web-card">
+      <div class="web-card-head">
+        <span class="web-title">${icon} ${isNginx ? "Nginx" : "Apache"} ${srv.version ? `<span class="web-ver">v${escapeHtml(srv.version)}</span>` : ""}</span>
+        <span class="web-badge ${on ? "on" : "off"}">${on ? "● çalışıyor" : "○ " + escapeHtml(srv.active)}</span>
+        <div class="spacer" style="flex:1"></div>
+        <button class="btn btn-sm tbtn" data-web-act="test" data-kind="${srv.kind}" data-bin="${escapeAttr(srv.bin)}">🔍 Yapılandırmayı test et</button>
+        <button class="btn btn-sm tbtn primary" data-web-act="reload" data-kind="${srv.kind}" data-bin="${escapeAttr(srv.bin)}" data-ok="Yeniden yüklendi">↻ Reload</button>
+        <button class="btn btn-sm tbtn" data-web-act="restart" data-kind="${srv.kind}" data-bin="${escapeAttr(srv.bin)}" data-ok="Yeniden başlatıldı">⟳ Restart</button>
+      </div>
+      <table class="web-tbl"><thead><tr><th>Site / vhost</th><th>Durum</th><th></th></tr></thead><tbody>${sites}</tbody></table>
+      <div class="dk-sub" style="margin-top:6px">İşlemler root ya da parolasız sudo gerektirir.</div>
+    </div>`;
 }
 
 // ---- Kullanıcılar & sahiplik (chown) ----

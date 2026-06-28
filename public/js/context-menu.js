@@ -60,7 +60,8 @@ export function showAreaMenu(e) {
   const actions = [
     { label: "⌨ Terminal'i burada aç", fn: () => import("./terminal.js").then((m) => m.openServerTerminal(cwd)) },
     { label: "📁 Yeni Klasör", fn: () => import("./toolbar.js").then((m) => m.newFolder()) },
-    { label: "🔎 Bu klasörde ara…", fn: () => searchHere() },
+    { label: "🔎 Bu klasörde ara… (dosya adı)", fn: () => searchHere() },
+    { label: "📝 İçerikte ara… (grep)", fn: () => searchContentHere() },
   ];
   if (clipboard && clipboard.paths.length) {
     const verb = clipboard.mode === "move" ? "Taşı" : "Yapıştır";
@@ -131,6 +132,18 @@ async function searchHere() {
     const r = await api("search?path=" + encodeURIComponent(cwd) + "&q=" + encodeURIComponent(q));
     const { showSearchResults } = await import("./explorer.js");
     showSearchResults(q, r.items || [], r.truncated);
+  } catch (e) { toast(e.message, true); }
+  finally { showLoading(false); }
+}
+
+async function searchContentHere() {
+  const q = await promptDialog(`"${cwd}" altındaki dosyaların İÇİNDE ara (grep):`, { title: "İçerikte Ara", okText: "Ara" });
+  if (!q) return;
+  showLoading(true);
+  try {
+    const r = await api("search-content?path=" + encodeURIComponent(cwd) + "&q=" + encodeURIComponent(q));
+    const { showContentResults } = await import("./explorer.js");
+    showContentResults(q, r.items || [], r.truncated);
   } catch (e) { toast(e.message, true); }
   finally { showLoading(false); }
 }

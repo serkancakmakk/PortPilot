@@ -2,6 +2,15 @@
 
 ## Yeni
 
+**Bağlantı & deneyim — yeni**
+- 📝 **İçerik araması (grep):** Dosya gezgininde boş alana sağ tık → "İçerikte ara… (grep)" ile dosyaların **içinde** metin ara; sonuç **dosya · satır · eşleşen satır** olarak listelenir, tıklayınca dosya düzenleyicide açılır. (Yalnızca SFTP.)
+- 📥 **SSH config içe aktarma:** Giriş ekranında "~/.ssh/config'ten içe aktar" ile `Host` bloklarını kayıtlı sunuculara dönüştür (HostName/Port/User + **ProxyJump → atlama sunucusu**). Kimlik bilgisi bağlanırken istenir.
+- 🔥 **Firewall (ufw) yönetimi:** "Sunucu Araçları → Firewall" ile **ufw** kurallarını gör (numaralı), port/servis için **izin ver / engelle**, kural **sil**, güvenlik duvarını **etkinleştir/devre dışı bırak**. (Root ya da parolasız sudo gerekir.)
+- 🌐 **Web sunucusu (Nginx / Apache) yönetimi:** "Sunucu Araçları → Web" ile kurulu **Nginx/Apache**'yi tespit et (sürüm + çalışıyor/durmuş), **site/vhost'ları** listele, tek tıkla **etkinleştir/kapat** (nginx sites-enabled · apache a2en/dissite), yapılandırmayı **test et** (`nginx -t` / `configtest`), **reload/restart** et ve vhost dosyasını **düzenleyicide aç**. (Root ya da parolasız sudo gerekir.)
+- 🛡️ **Atlama sunucusu (Jump Host / Bastion):** Hedef sunucuya bir **ara sunucu (bastion) üzerinden** bağlan (ProxyJump). Giriş ekranında katlanır "Atlama sunucusu" bölümü; bastion için ayrı host/port/kullanıcı + parola **veya** SSH anahtarı. Kayıtlı sunucularda saklanır (kimlik bilgileri şifreli), oturum koparsa atlama zinciri otomatik yeniden kurulur. (Yalnızca SFTP.)
+- ⌘ **Komut paleti (Cmd/Ctrl+K):** Tek kısayolla tüm aksiyonları (Docker, Terminal, Sunucu Araçları, tema/dil, yükle/indir…) ve **kayıtlı sunuculara bağlanmayı** aranabilir bir listede topla; ok tuşlarıyla gez, Enter ile çalıştır.
+- 🧭 **Kenar çubuğu aç/kapa + kaydırma:** Sidebar masaüstünde daraltılıp genişletilebilir (durum hatırlanır); menü uzayınca kaydırılabilir.
+
 **Dosya gezgini — yeni**
 - 🗜️ **Arşivle / çıkar:** Bir veya birden çok öğeye sağ tık → "Arşivle…" ile sunucu üzerinde **.tar.gz** veya **.zip** oluştur; bir arşive sağ tık → "Buraya çıkar" ile (`.tar.gz`/`.tar`/`.zip`/`.gz` …) bulunduğu klasöre aç.
 - ✏️ **Toplu yeniden adlandırma:** Birden çok öğe seçip sağ tık → "Toplu yeniden adlandır…" ile **bul/değiştir (regex)** veya **sıralı isimlendirme** (`{name}`, `{n}`, başlangıç + basamak) uygula; **canlı önizleme** ve çakışma uyarısı.
