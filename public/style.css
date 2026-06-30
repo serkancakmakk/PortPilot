@@ -2542,6 +2542,31 @@ tr.dir .fname {
   transition: width .15s ease;
 }
 
+.upload-progress-stats {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: 12px;
+  color: var(--muted, #9aa3b2);
+}
+
+.upload-progress-stats:empty {
+  display: none;
+}
+
+.upload-progress-stats .ups-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.upload-progress-stats .ups-strong {
+  color: var(--text, #e6e9ef);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- Aktarım seçenekleri diyaloğu ---- */
 .uo-box {
   max-width: 480px;

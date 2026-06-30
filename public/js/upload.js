@@ -28,7 +28,11 @@ export async function uploadEntries(entries) {
   const cum = entries.map(({ file }) => (
     acc += (file && file.size) || 0));
   const names = entries.map(({ rel, file }) => (rel || (file && file.name) || "dosya").split("/").pop());
-  _progState = { total: entries.length, cum, totalBytes: acc || 1, names };
+  const now = Date.now();
+  _progState = {
+    total: entries.length, cum, totalBytes: acc || 1, names,
+    t0: now, lastT: now, lastLoaded: 0, speed: 0,
+  };
   setUploadProgress(0);
   try {
     const r = await uploadWithProgress(fd);
@@ -87,6 +91,27 @@ export function cancelUpload() {
   if (_activeXhr) { try { _activeXhr.abort(); } catch (_) {} }
 }
 
+// Süreyi okunabilir biçime çevir: "8 sn", "1 dk 5 sn", "2 sa 3 dk".
+function fmtTime(sec) {
+  if (!isFinite(sec) || sec < 0) return "";
+  sec = Math.round(sec);
+  if (sec < 60) return `${sec} sn`;
+  const m = Math.floor(sec / 60), s = sec % 60;
+  if (m < 60) return s ? `${m} dk ${s} sn` : `${m} dk`;
+  const h = Math.floor(m / 60);
+  return `${h} sa ${m % 60} dk`;
+}
+
+// İstatistik satırını (boyut · hız · ETA · yüzde …) HTML olarak yaz.
+function setStats(items) {
+  const el = $("upload-progress-stats");
+  if (!el) return;
+  el.innerHTML = (items || [])
+    .filter(Boolean)
+    .map((t) => `<span class="ups-item"><span class="ups-strong">${t}</span></span>`)
+    .join("");
+}
+
 // Faz 2: sunucu → uzak yazma ilerlemesi (gerçek dosya sayısı)
 function setWriteProgress(done, total) {
   const box = $("upload-progress");
@@ -96,7 +121,12 @@ function setWriteProgress(done, total) {
   const label = $("upload-progress-label");
   const pct = total ? Math.round((done / total) * 100) : 0;
   if (bar) { bar.classList.remove("writing"); bar.style.width = pct + "%"; }
-  if (label) label.textContent = `Sunucuya yazılıyor… ${done}/${total} · ${Math.max(0, total - done)} kaldı · %${pct}`;
+  if (label) label.textContent = "Sunucuya yazılıyor…";
+  setStats([
+    `${done}/${total} dosya`,
+    `${Math.max(0, total - done)} kaldı`,
+    `%${pct}`,
+  ]);
 }
 
 function uploadWithProgress(formData) {
@@ -146,6 +176,7 @@ function setUploadProgress(frac) {
   // %100'e ulaşınca / iş bitince göstergeyi kapat
   if (frac === null) {
     _progState = null;
+    setStats([]);
     if (box) box.hidden = true; else showLoading(false);
     return;
   }
@@ -168,11 +199,39 @@ function setUploadProgress(frac) {
     for (const c of cum) { if (loaded >= c - 1) done++; else break; }
     const remaining = Math.max(0, total - done);
     const cur = names[Math.min(done, total - 1)] || "";
-    label.textContent = pct >= 100
-      ? `Sunucuya yazılıyor… (${total}/${total} dosya)`
-      : `${done}/${total} · ${cur} · ${remaining} kaldı · %${pct}`;
+
+    if (pct >= 100) {
+      // Byte gönderimi bitti; sunucu uzak tarafa yazana kadar bekleniyor.
+      label.textContent = "Sunucuya yazılıyor…";
+      setStats([`${total}/${total} dosya`, fmtSize(totalBytes), `%100`]);
+      return;
+    }
+
+    // Hız (üstel hareketli ortalama) ve tahmini kalan süre.
+    const now = Date.now();
+    const dt = (now - _progState.lastT) / 1000;
+    if (dt >= 0.3) {
+      const inst = (loaded - _progState.lastLoaded) / dt;
+      _progState.speed = _progState.speed ? _progState.speed * 0.7 + inst * 0.3 : inst;
+      _progState.lastT = now;
+      _progState.lastLoaded = loaded;
+    }
+    const speed = _progState.speed;
+    const eta = speed > 0 ? (totalBytes - loaded) / speed : Infinity;
+
+    label.textContent = total > 1
+      ? `${done + 1 > total ? total : done + 1}/${total} · ${cur}`
+      : (cur || "Yükleniyor…");
+    setStats([
+      total > 1 ? `${remaining} dosya kaldı` : null,
+      `${fmtSize(loaded)} / ${fmtSize(totalBytes)}`,
+      speed > 0 ? `${fmtSize(speed)}/sn` : null,
+      isFinite(eta) ? `~${fmtTime(eta)} kaldı` : null,
+      `%${pct}`,
+    ]);
   } else {
-    label.textContent = `Yükleniyor… %${pct}`;
+    label.textContent = "Yükleniyor…";
+    setStats([`%${pct}`]);
   }
 }
 
