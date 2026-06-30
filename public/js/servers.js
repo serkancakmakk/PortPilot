@@ -6,9 +6,46 @@ import { confirmDialog } from "./dialog.js";
 // state.js'de eksik olanları ekleyelim — ama basit tutmak için burada modül-lokal tutuyoruz
 let _savedServers = [];
 let _selectedServerIds = new Set();
+// Sürükle-bırakla taşınan sunucunun id'si (grup değiştirme için)
+let _dragServerId = null;
 
 export function getSavedServers() {
   return _savedServers;
+}
+
+// Mevcut grup adlarını <datalist>'e doldur → kaydet/düzenle alanlarında otomatik tamamlama.
+function refreshGroupDatalist() {
+  let dl = document.getElementById("group-suggestions");
+  if (!dl) {
+    dl = document.createElement("datalist");
+    dl.id = "group-suggestions";
+    document.body.appendChild(dl);
+  }
+  const seen = new Set();
+  dl.innerHTML = "";
+  _savedServers.forEach((s) => {
+    const g = (s.group || "").trim();
+    if (g && !seen.has(g)) {
+      seen.add(g);
+      const o = document.createElement("option");
+      o.value = g;
+      dl.appendChild(o);
+    }
+  });
+}
+
+// Bir sunucuyu başka gruba taşı (sürükle-bırak ile çağrılır).
+async function moveServerToGroup(id, group) {
+  const srv = _savedServers.find((x) => String(x.id) === String(id));
+  if (!srv) return;
+  if ((srv.group || "").trim() === group) return; // zaten bu grupta
+  try {
+    await api("servers", { method: "POST", json: { ...srv, group } });
+    toast(group ? `"${srv.name}" → ${group}` : `"${srv.name}" gruptan çıkarıldı`);
+  } catch (err) {
+    toast(err.message, true);
+  }
+  renderSavedServers();
 }
 
 // Kapatılmış grupların adlarını localStorage'da sakla
@@ -31,6 +68,7 @@ export async function renderSavedServers() {
     _savedServers = [];
   }
   const servers = _savedServers;
+  refreshGroupDatalist();
   const wrap = $("saved-wrap");
   const list = $("saved-list");
   wrap.hidden = servers.length === 0;
@@ -39,7 +77,8 @@ export async function renderSavedServers() {
 
   const bar = document.createElement("div");
   bar.className = "srv-bulk";
-  bar.innerHTML = `<button type="button" id="srv-del-selected" class="srv-bulk-btn danger" hidden>Seçilenleri Sil</button>
+  bar.innerHTML = `<span class="srv-dnd-hint">💡 Bir sunucuyu sürükleyip grup başlığına bırakarak taşı</span>
+     <button type="button" id="srv-del-selected" class="srv-bulk-btn danger" hidden>Seçilenleri Sil</button>
      <button type="button" id="srv-del-all" class="srv-bulk-btn">Tümünü Sil</button>`;
   list.appendChild(bar);
 
@@ -78,6 +117,24 @@ export async function renderSavedServers() {
     const isCollapsed = collapsed.has(label);
     const section = document.createElement("div");
     section.className = "srv-group" + (isCollapsed ? " collapsed" : "");
+    section.dataset.group = g;
+    // Sürükle-bırak: bu bölüme bırakılan sunucu bu gruba taşınır.
+    section.addEventListener("dragover", (e) => {
+      if (_dragServerId == null) return;
+      e.preventDefault();
+      try { e.dataTransfer.dropEffect = "move"; } catch (_) {}
+      section.classList.add("drop-target");
+    });
+    section.addEventListener("dragleave", (e) => {
+      if (!section.contains(e.relatedTarget)) section.classList.remove("drop-target");
+    });
+    section.addEventListener("drop", (e) => {
+      e.preventDefault();
+      section.classList.remove("drop-target");
+      const id = _dragServerId || (e.dataTransfer && e.dataTransfer.getData("text/plain"));
+      _dragServerId = null;
+      if (id) moveServerToGroup(id, g);
+    });
     const head = document.createElement("div");
     head.className = "srv-group-head";
     head.innerHTML = `<span class="srv-group-name"><span class="srv-chevron">▾</span> 📁 ${escapeHtml(label)} <span class="srv-group-count">${items.length}</span></span>`;
@@ -130,6 +187,22 @@ function buildServerCell(s, updateBulkBtn) {
   const hasCreds = !!(s.password || s.privateKey);
   const cell = document.createElement("div");
   cell.className = "srv-cell";
+  cell.draggable = true;
+  cell.dataset.id = s.id;
+  cell.addEventListener("dragstart", (e) => {
+    _dragServerId = s.id;
+    cell.classList.add("dragging");
+    try {
+      e.dataTransfer.setData("text/plain", String(s.id));
+      e.dataTransfer.effectAllowed = "move";
+    } catch (_) {}
+  });
+  cell.addEventListener("dragend", () => {
+    _dragServerId = null;
+    cell.classList.remove("dragging");
+    document.querySelectorAll(".srv-group.drop-target")
+      .forEach((x) => x.classList.remove("drop-target"));
+  });
   const pick = document.createElement("input");
   pick.type = "checkbox";
   pick.className = "srv-pick";
@@ -200,7 +273,7 @@ function editServer(s) {
           <option value="ftp">FTP</option>
           <option value="ftps">FTPS</option>
         </select></label>
-        <label class="se-field">Grup / etiket<input class="se-group" type="text" placeholder="ör. Üretim"></label>
+        <label class="se-field">Grup / etiket<input class="se-group" type="text" list="group-suggestions" placeholder="ör. Üretim"></label>
         <label class="se-field se-wide">Sunucu (host)<input class="se-host" type="text"></label>
         <label class="se-field">Port<input class="se-port" type="number" min="1" max="65535"></label>
         <label class="se-field">Kullanıcı<input class="se-user" type="text"></label>
