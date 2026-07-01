@@ -1,5 +1,7 @@
 # 🦖 PortPilot
 
+**Türkçe** · [English](README.en.md)
+
 ![version](https://img.shields.io/badge/sürüm-v1.2-2563eb) ![node](https://img.shields.io/badge/node-%3E%3D18-339933) ![license](https://img.shields.io/badge/lisans-MIT-555)
 
 Uzak sunuculara **SFTP, FTP veya FTPS** ile bağlanıp tarayıcıdan ya da masaüstü uygulamasından,
