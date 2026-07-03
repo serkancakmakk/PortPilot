@@ -54,7 +54,19 @@ export function syncActiveConn() {
     c.cwd = cwd;
     c.homePath = homePath;
     c.history = history;
+    // Açık görünüm (panel) bağlantıya özeldir; sekme değişince sızmasın.
+    c.view = ($("dash-view") && !$("dash-view").hidden) ? "dashboard" : "files";
   }
+}
+
+// Aktif oturuma özgü modal panelleri kapat. Bunlar bağlı olunan sunucunun anlık
+// verisini gösterir; sekme değişince açık kalırlarsa yanlış sunucunun bayat
+// verisini gösterirler. Bu yüzden bağlantı değiştirirken kapatılırlar.
+function resetSessionPanels() {
+  ["docker-panel", "systools-panel", "audit-panel"].forEach((id) => {
+    const el = $(id);
+    if (el) el.hidden = true;
+  });
 }
 
 // Açık bağlantıları localStorage'a yaz (refresh sonrası geri yüklemek için)
@@ -65,7 +77,7 @@ export function persistConns() {
       activeId: activeConnId,
       conns: connections.map((c) => ({
         id: c.id, session: c.session, info: c.info,
-        cwd: c.cwd, homePath: c.homePath, connectedAt: c.connectedAt,
+        cwd: c.cwd, homePath: c.homePath, connectedAt: c.connectedAt, view: c.view,
       })),
     };
     if (data.conns.length) localStorage.setItem("openConns", JSON.stringify(data));
@@ -86,11 +98,18 @@ export function activateConn(id) {
   $("explorer").hidden = false;
   updateConnInfo(c.info);
   renderTabs();
+  // Önceki sunucunun modal panellerini kapat (bayat/yanlış sunucu verisi göstermesin)
+  resetSessionPanels();
   import("./sidebar.js").then((m) => { m.renderQuickLinks(); m.renderFavorites(); });
   import("./recent-local.js").then((m) => m.renderRecentLocal()); // son klasörler host bazlı
   import("./local-last.js").then((m) => m.renderLocalLast()); // bu sunucu için son yerel konum
   import("./local-explorer.js").then((m) => m.resetLocalExplorer()); // gezgin sunucular arası taşınmasın
   navigate(cwd, false);
+  // Bu bağlantının en son görünümünü geri yükle (panel bağlantıya özel, sekmeye sızmaz)
+  import("./dashboard.js").then((m) => {
+    if (c.view === "dashboard") m.openDashboard();
+    else m.showFilesView();
+  });
   persistConns();
 }
 

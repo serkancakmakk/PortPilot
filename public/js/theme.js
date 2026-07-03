@@ -1,14 +1,11 @@
-// Karanlık / aydınlık tema — seçim localStorage'da kalıcı; ilk açılışta sistem
-// tercihine (prefers-color-scheme) düşer.
+// Karanlık / aydınlık tema — seçim localStorage'da kalıcı. Kullanıcı bir tercih
+// yapana kadar varsayılan olarak aydınlık (light) tema açılır; işletim sisteminin
+// koyu tema olması varsayılanı değiştirmez.
 import { t } from "./i18n.js";
 const KEY = "theme";
 
-function systemPref() {
-  return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
 export function currentTheme() {
-  return localStorage.getItem(KEY) || systemPref();
+  return localStorage.getItem(KEY) || "light";
 }
 
 function apply(theme) {
