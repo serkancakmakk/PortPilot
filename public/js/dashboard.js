@@ -253,6 +253,8 @@ function setDashboardView(on) {
   // bu yüzden tüm sarmalayıcıyı gizle.
   if ($("panes")) $("panes").hidden = on;
   if ($("statusbar")) $("statusbar").hidden = on;
+  // Sidebar vurgusunu güncelle: panel açıkken "Sunucu Paneli", kapalıyken dosya yolu.
+  import("./sidebar.js").then((m) => m.highlightQuick());
 }
 
 export function openDashboard() {

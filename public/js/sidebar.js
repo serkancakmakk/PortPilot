@@ -85,9 +85,13 @@ export function renderQuickLinks() {
 }
 
 export function highlightQuick() {
+  // Sunucu Paneli (dashboard) açıkken dosya yolu değil, "Sunucu Paneli" aktif olmalı.
+  const dashOpen = !!($("dash-view") && !$("dash-view").hidden);
   document.querySelectorAll("#quick-links a, #favorites a").forEach((a) => {
-    a.classList.toggle("active", a.dataset.path === cwd);
+    a.classList.toggle("active", !dashOpen && a.dataset.path === cwd);
   });
+  const dashBtn = $("btn-dashboard");
+  if (dashBtn) dashBtn.classList.toggle("active", dashOpen);
   updateFavButton();
 }
 

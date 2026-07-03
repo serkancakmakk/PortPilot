@@ -7,6 +7,7 @@ import {
 import { renderSavedServers } from "./servers.js";
 import { navigate } from "./explorer.js";
 import { confirmDialog } from "./dialog.js";
+import { openDashboard, showFilesView } from "./dashboard.js";
 
 export function updateConnInfo(i) {
   const proto = (i.protocol || "sftp").toUpperCase();
@@ -88,6 +89,10 @@ export function persistConns() {
 export function activateConn(id) {
   const c = connections.find((x) => x.id === id);
   if (!c) return;
+  // Hedef görünümü, herhangi bir yeniden senkron (persistConns) c.view'ü ezmeden
+  // ÖNCE yakala. Aksi halde persistConns→syncActiveConn, yeni sekmenin görünümünü
+  // o an ekranda duran (önceki sekmenin) paneline göre hesaplar ve sekmeye sızar.
+  const targetView = c.view;
   if (activeConnId && activeConnId !== id) syncActiveConn();
   setActiveConnId(id);
   setSession(c.session);
@@ -105,11 +110,11 @@ export function activateConn(id) {
   import("./local-last.js").then((m) => m.renderLocalLast()); // bu sunucu için son yerel konum
   import("./local-explorer.js").then((m) => m.resetLocalExplorer()); // gezgin sunucular arası taşınmasın
   navigate(cwd, false);
-  // Bu bağlantının en son görünümünü geri yükle (panel bağlantıya özel, sekmeye sızmaz)
-  import("./dashboard.js").then((m) => {
-    if (c.view === "dashboard") m.openDashboard();
-    else m.showFilesView();
-  });
+  // Bu bağlantının kendi görünümünü SENKRON uygula (persistConns'tan önce), ki
+  // persistConns→syncActiveConn doğru görünürlüğü kaydetsin. Async import ile
+  // yapılırsa persistConns'tan sonra çalışır ve ezilmiş değeri okurdu.
+  if (targetView === "dashboard") openDashboard();
+  else showFilesView();
   persistConns();
 }
 
