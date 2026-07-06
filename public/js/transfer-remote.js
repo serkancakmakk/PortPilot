@@ -43,11 +43,11 @@ export function showRemoteTransfer(sources) {
     const host = (conn.info && conn.info.host) || "";
     import("./transfer-queue.js").then((tq) =>
       tq.enqueueTransfer(`Sunucuya aktar → ${host} (${sources.length})`,
-        () => runTransfer(sourceSession, conn.session, dest, sources)));
+        (report) => runTransfer(sourceSession, conn.session, dest, sources, report)));
   };
 }
 
-export async function runTransfer(sourceSession, target, dest, sources) {
+export async function runTransfer(sourceSession, target, dest, sources, report) {
   const res = await fetch("/api/transfer-remote", {
     method: "POST",
     headers: { "Content-Type": "application/json", ...(sourceSession ? { "x-session": sourceSession } : {}) },
@@ -60,7 +60,7 @@ export async function runTransfer(sourceSession, target, dest, sources) {
   }
   const reader = res.body.getReader();
   const dec = new TextDecoder();
-  let buf = "", last = null;
+  let buf = "", last = null, total = 0;
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -70,6 +70,8 @@ export async function runTransfer(sourceSession, target, dest, sources) {
     for (const line of lines) {
       const t = line.trim(); if (!t) continue;
       let o; try { o = JSON.parse(t); } catch (_) { continue; }
+      if (o.total != null) total = o.total;
+      if (o.done != null && total && report) report.set(o.done / total, `${o.done}/${total} dosya`);
       if (o.ok || o.error) last = o;
     }
   }

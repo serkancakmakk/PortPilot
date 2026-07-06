@@ -140,5 +140,5 @@ export function initToolbar() {
 function queueUpload(label, entries) {
   if (!entries.length) return;
   import("./transfer-queue.js").then((tq) =>
-    tq.enqueueTransfer(label, () => import("./upload.js").then((m) => m.uploadEntries(entries))));
+    tq.enqueueTransfer(label, (report) => import("./upload.js").then((m) => m.uploadEntries(entries, report))));
 }

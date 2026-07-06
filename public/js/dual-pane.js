@@ -176,18 +176,20 @@ function transferLeftToRight() {
   if (dp.mode === "local") {
     // Sunucu → yerel klasöre indir (masaüstü)
     const destDir = dp.cwd;
-    enqueueTransfer(`İndir → 💻 ${destDir} (${items.length})`, async () => {
+    enqueueTransfer(`İndir → 💻 ${destDir} (${items.length})`, async (report) => {
       let ok = 0, fail = 0;
       for (const it of items) {
         const full = joinPath(cwd, it.name);
         const isDir = it.type === "dir";
         const url = `${location.origin}/api/${isDir ? "download-folder" : "download"}?session=${encodeURIComponent(session)}&path=${encodeURIComponent(full)}`;
         const name = isDir ? it.name + ".tar.gz" : it.name;
+        if (report) report.set((ok + fail) / items.length, `${ok + fail}/${items.length} · ${name}`);
         try {
           const r = await window.desktop.downloadToDir(url, destDir, name);
           if (r && r.ok) ok++; else fail++;
         } catch (_) { fail++; }
       }
+      if (report) report.set(1, `${ok + fail}/${items.length} dosya`);
       toast(fail ? `${ok} indirildi, ${fail} başarısız` : `${ok} öğe indirildi → ${destDir}`, !!fail);
       loadLocal(destDir);
     });
@@ -199,8 +201,8 @@ function transferLeftToRight() {
   const c = activeConn();
   if (c && c.session === dp.tok) return toast("İki panel aynı sunucu — farklı bir sunucu seç.", true);
   const sel = items.map((it) => joinPath(cwd, it.name));
-  enqueueTransfer(`Soldan al → ${rightLabel()} (${sel.length})`, async () => {
-    await runTransfer(session, dp.tok, dp.cwd, sel);
+  enqueueTransfer(`Soldan al → ${rightLabel()} (${sel.length})`, async (report) => {
+    await runTransfer(session, dp.tok, dp.cwd, sel, report);
     loadDp();
   });
 }
@@ -213,8 +215,8 @@ function transferRightToLeft() {
   if (dp.mode === "local") {
     // Yerel → aktif sunucunun açık klasörüne yükle
     const abs = items.map((it) => it.abs).filter(Boolean);
-    enqueueTransfer(`Yükle → ${activeLabel()} (${abs.length})`, () =>
-      import("./local-explorer.js").then((m) => m.uploadLocalPaths(abs, abs)));
+    enqueueTransfer(`Yükle → ${activeLabel()} (${abs.length})`, (report) =>
+      import("./local-explorer.js").then((m) => m.uploadLocalPaths(abs, abs, false, report)));
     return;
   }
 
@@ -223,8 +225,8 @@ function transferRightToLeft() {
   const c = activeConn();
   if (c && c.session === dp.tok) return toast("İki panel aynı sunucu — farklı bir sunucu seç.", true);
   const sel = items.map((it) => joinPath(dp.cwd, it.name));
-  enqueueTransfer(`Sola gönder → ${activeLabel()} (${sel.length})`, async () => {
-    await runTransfer(dp.tok, session, cwd, sel);
+  enqueueTransfer(`Sola gönder → ${activeLabel()} (${sel.length})`, async (report) => {
+    await runTransfer(dp.tok, session, cwd, sel, report);
     navigate(cwd, false);
   });
 }

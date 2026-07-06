@@ -5,7 +5,8 @@ import { navigate, fmtSize } from "./explorer.js";
 // Uygulama içi yerel gezginden sürüklenen öğeler bu DataTransfer türüyle gelir.
 const LOCAL_DT_TYPE = "application/x-portpilot-local";
 
-export async function uploadEntries(entries) {
+export async function uploadEntries(entries, report) {
+  _report = report || null;
   entries = (entries || []).filter((e) => e && e.file);
   if (!entries.length) { toast("Yüklenecek dosya bulunamadı.", true); return; }
 
@@ -86,6 +87,8 @@ export function askUploadOptions(entries, summaryText) {
 }
 
 let _activeXhr = null;
+// Transfer kuyruğuna ilerleme bildirmek için (uploadEntries çağrısında set edilir).
+let _report = null;
 
 export function cancelUpload() {
   if (_activeXhr) { try { _activeXhr.abort(); } catch (_) {} }
@@ -127,6 +130,7 @@ function setWriteProgress(done, total) {
     `${Math.max(0, total - done)} kaldı`,
     `%${pct}`,
   ]);
+  if (_report) _report.set(total ? done / total : null, `Sunucuya yazılıyor… ${done}/${total} dosya`);
 }
 
 function uploadWithProgress(formData) {
@@ -204,6 +208,7 @@ function setUploadProgress(frac) {
       // Byte gönderimi bitti; sunucu uzak tarafa yazana kadar bekleniyor.
       label.textContent = "Sunucuya yazılıyor…";
       setStats([`${total}/${total} dosya`, fmtSize(totalBytes), `%100`]);
+      if (_report) _report.set(null, "Sunucuya yazılıyor…");
       return;
     }
 
@@ -229,9 +234,18 @@ function setUploadProgress(frac) {
       isFinite(eta) ? `~${fmtTime(eta)} kaldı` : null,
       `%${pct}`,
     ]);
+    if (_report) {
+      const bits = [
+        `${fmtSize(loaded)} / ${fmtSize(totalBytes)}`,
+        speed > 0 ? `${fmtSize(speed)}/sn` : null,
+        isFinite(eta) ? `~${fmtTime(eta)} kaldı` : null,
+      ].filter(Boolean);
+      _report.set(frac, bits.join(" · "));
+    }
   } else {
     label.textContent = "Yükleniyor…";
     setStats([`%${pct}`]);
+    if (_report) _report.set(frac, null);
   }
 }
 
@@ -280,8 +294,8 @@ export function initDragDrop() {
       const paths = Array.isArray(payload) ? payload : (payload && payload.paths) || [];
       const folders = (payload && payload.folders) || [];
       if (paths.length) import("./transfer-queue.js").then((tq) =>
-        tq.enqueueTransfer(`${paths.length} öğe yükle`, () =>
-          import("./local-explorer.js").then((m) => m.uploadLocalPaths(paths, folders))));
+        tq.enqueueTransfer(`${paths.length} öğe yükle`, (report) =>
+          import("./local-explorer.js").then((m) => m.uploadLocalPaths(paths, folders, false, report))));
       return;
     }
 
@@ -329,7 +343,7 @@ export function initDragDrop() {
 // uploadEntries'i transfer kuyruğuna ekler (sıraya alır, üst üste binmez).
 function queueEntries(label, entries) {
   if (!entries || !entries.length) return;
-  import("./transfer-queue.js").then((tq) => tq.enqueueTransfer(label, () => uploadEntries(entries)));
+  import("./transfer-queue.js").then((tq) => tq.enqueueTransfer(label, (report) => uploadEntries(entries, report)));
 }
 
 function readAllEntries(reader) {

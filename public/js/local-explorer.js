@@ -199,7 +199,7 @@ function updateFoot() {
 // Verilen yolları sunucudaki güncel dizine yükler; seçenek sorar. rememberFolders
 // verilirse yalnızca onlar "son klasörler"e eklenir (dosyalar kirletmez).
 // sync=true → seçenek sormaz, yalnızca değişen/yeni dosyaları gönderir (senkronizasyon).
-export async function uploadLocalPaths(paths, rememberFolders, sync) {
+export async function uploadLocalPaths(paths, rememberFolders, sync, report) {
   paths = (paths || []).filter(Boolean);
   if (!paths.length) return;
   const names = paths.map((p) => p.split(/[\\/]/).filter(Boolean).pop());
@@ -231,7 +231,11 @@ export async function uploadLocalPaths(paths, rememberFolders, sync) {
         const t = line.trim(); if (!t) continue;
         let o; try { o = JSON.parse(t); } catch (_) { continue; }
         if (o.total != null) total = o.total;
-        if (o.done != null && total && $("lx-info")) $("lx-info").textContent = `Yükleniyor… %${Math.round((o.done / total) * 100)}`;
+        if (o.done != null && total) {
+          const pct = Math.round((o.done / total) * 100);
+          if ($("lx-info")) $("lx-info").textContent = `${sync ? "Senkronize ediliyor" : "Yükleniyor"}… %${pct}`;
+          if (report) report.set(o.done / total, `${o.done}/${total} dosya`);
+        }
         if (o.ok || o.error) last = o;
       }
     }
@@ -258,7 +262,7 @@ function uploadSelected(sync) {
   const folders = foldersToRemember(items, curPath);
   const label = `${sync ? "Senkronize" : "Yükle"} (${paths.length} öğe)`;
   import("./transfer-queue.js").then((tq) =>
-    tq.enqueueTransfer(label, () => uploadLocalPaths(paths, folders, sync)));
+    tq.enqueueTransfer(label, (report) => uploadLocalPaths(paths, folders, sync, report)));
 }
 
 export function initLocalExplorer() {
