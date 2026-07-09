@@ -224,6 +224,7 @@
           <a id="btn-systools"><span class="q-ico" data-icon="activity"></span> <span data-i18n="nav.serverTools">Sunucu Araçları</span></a>
           <a id="btn-audit"><span class="q-ico">📜</span> <span data-i18n="nav.audit">İşlem Günlüğü</span></a>
           <a id="btn-whatsnew"><span class="q-ico" data-icon="gauge"></span> <span data-i18n="nav.whatsnew">Sürüm Notları</span></a>
+          <a id="btn-params"><span class="q-ico" data-icon="settings"></span> <span>Parametreler</span></a>
           <a id="btn-theme"><span class="q-ico theme-ico">🌙</span> <span class="theme-label">Karanlık Tema</span></a>
           <a id="btn-lang"><span class="q-ico lang-ico">🇬🇧</span> <span class="lang-label">English</span></a>
           <a id="btn-update" hidden><span class="q-ico" data-icon="refresh"></span> <span class="upd-label" data-i18n="nav.update">Güncellemeleri Denetle</span><span class="upd-dot" hidden></span></a>
@@ -442,6 +443,46 @@
         <button id="audit-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
       </div>
       <div class="docker-body" id="audit-body"></div>
+    </div>
+  </div>
+
+  <!-- Parametreler -->
+  <div id="params-panel" class="editor-overlay" hidden>
+    <div class="params-box">
+      <div class="editor-head">
+        <span class="editor-title"><span class="nav-ico-wrap" data-icon="settings"></span> Parametreler</span>
+        <span class="editor-status" id="params-status"></span>
+        <div class="spacer"></div>
+        <button id="params-close" class="ed-btn"><span class="nav-ico-wrap" data-icon="x"></span> Kapat</button>
+      </div>
+      <div class="params-body">
+        <section class="params-section">
+          <h2>Oturum ve bağlantı</h2>
+          <label class="params-field" for="idle-timeout-min">
+            <span>Boşta kalan session kapanma süresi</span>
+            <div class="params-inline">
+              <input type="number" id="idle-timeout-min" min="0" max="1440" step="1" />
+              <span>dakika</span>
+            </div>
+          </label>
+          <p class="params-help">Sunucuda bağlantı boşta kaldığı için düşüyorsa süreyi yükselt. 0 yazarsan PortPilot boşta kalan session'ı otomatik kapatmaz.</p>
+          <label class="params-check">
+            <input type="checkbox" id="restore-open-sessions" />
+            <span>Açık oturumları uygulama yeniden açılınca geri yükle</span>
+          </label>
+          <label class="params-check">
+            <input type="checkbox" id="auto-connect-saved-server" />
+            <span>Açılışta kayıtlı sunucuya otomatik bağlan</span>
+          </label>
+          <label class="params-field" for="auto-connect-mode">
+            <span>Otomatik bağlanılacak sunucu</span>
+            <select id="auto-connect-mode">
+              <option value="last">Son bağlanılan kayıtlı sunucu</option>
+              <option value="first">İlk kimlik bilgisi kayıtlı sunucu</option>
+            </select>
+          </label>
+        </section>
+      </div>
     </div>
   </div>
 

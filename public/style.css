@@ -1995,6 +1995,101 @@ tr.dir .fname {
   background: var(--bg);
 }
 
+/* ---- Parametreler paneli ---- */
+.params-box {
+  background: var(--panel);
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(720px, calc(100vh - 32px));
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: pop .25s cubic-bezier(.2, .9, .3, 1.2);
+}
+
+.params-body {
+  padding: 18px;
+  overflow: auto;
+}
+
+.params-section {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel-2);
+  padding: 16px;
+}
+
+.params-section h2 {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.params-field {
+  display: grid;
+  gap: 7px;
+  margin-bottom: 12px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.params-inline {
+  display: grid;
+  grid-template-columns: minmax(0, 160px) auto;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.params-field input,
+.params-field select,
+.params-inline input {
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  padding: 9px 11px;
+  outline: none;
+}
+
+.params-field input:focus,
+.params-field select:focus,
+.params-inline input:focus {
+  border-color: var(--accent);
+  box-shadow: var(--ring);
+}
+
+.params-help {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  margin: -4px 0 14px;
+}
+
+.params-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.params-check input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+#params-status.error { color: var(--danger); }
+
 .dk-msg {
   padding: 40px;
   text-align: center;

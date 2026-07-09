@@ -121,6 +121,7 @@ export function activateConn(id) {
 export function showAddConnection() {
   const f = $("connect-form");
   f.reset();
+  delete f.dataset.savedServerId;
   f.port.value = "22";
   document.querySelector('[data-auth="password"]').click();
   $("login-error").textContent = "";

@@ -358,6 +358,7 @@ export function maybeSaveServer(body) {
 
 export function selectServer(s) {
   const f = $("connect-form");
+  f.dataset.savedServerId = s.id == null ? "" : String(s.id);
   f.protocol.value = s.protocol || "sftp";
   import("./login.js").then((m) => m.applyProtocol({ keepPort: true }));
   f.host.value = s.host;

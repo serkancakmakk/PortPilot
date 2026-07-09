@@ -3,6 +3,7 @@ import { api } from "./api.js";
 import { connections, activeConnId, session, setConnections, setActiveConnId } from "./state.js";
 import { syncActiveConn, activateConn, renderTabs } from "./connections.js";
 import { maybeSaveServer, renderSavedServers } from "./servers.js";
+import { rememberConnectedServer } from "./session-settings.js";
 
 const DEFAULT_PORTS = { sftp: "22", ftp: "21", ftps: "21" };
 
@@ -112,6 +113,8 @@ export function initLogin() {
 
       const i = data.info;
       const savedName = maybeSaveServer(body);
+      rememberConnectedServer(f.dataset.savedServerId || "");
+      delete f.dataset.savedServerId;
       const home = data.home || "/";
       const conn = {
         id: "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),

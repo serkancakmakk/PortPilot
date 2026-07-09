@@ -1,7 +1,7 @@
 import { applyIcons } from "./icons.js";
 import { setLogoutFn } from "./api.js";
 import { logout, closeConnection, renderTabs, activateConn, persistConns } from "./connections.js";
-import { renderSavedServers } from "./servers.js";
+import { getSavedServers, renderSavedServers, selectServer } from "./servers.js";
 import { setConnections, loadFavoritesFromServer } from "./state.js";
 import { renderFavorites } from "./sidebar.js";
 import { initLogin } from "./login.js";
@@ -26,6 +26,7 @@ import { initEditExternal, stopAllEdits } from "./edit-external.js";
 import { initCommandPalette } from "./command-palette.js";
 import { initAudit } from "./audit.js";
 import { initDualPane } from "./dual-pane.js";
+import { getSessionPrefs, initSessionSettings, loadSessionPrefs } from "./session-settings.js";
 import { hideMenu, showAreaMenu, renameItem, deleteItem } from "./context-menu.js";
 import { navigate, joinPath } from "./explorer.js";
 import { cwd, activeConnId, selectedItem } from "./state.js";
@@ -53,6 +54,28 @@ async function restoreSessions() {
   return true;
 }
 
+function autoConnectSavedServer() {
+  const prefs = getSessionPrefs();
+  if (!prefs.autoConnectSavedServer) return false;
+  const servers = getSavedServers().filter((s) => s && (s.password || s.privateKey));
+  if (!servers.length) return false;
+  let target = null;
+  if (prefs.autoConnectMode !== "first" && prefs.lastConnectedServerId) {
+    target = servers.find((s) => String(s.id) === String(prefs.lastConnectedServerId));
+  }
+  if (!target) target = servers[0];
+  selectServer(target);
+  return true;
+}
+
+async function initStartupConnections() {
+  await loadSessionPrefs();
+  await renderSavedServers();
+  const prefs = getSessionPrefs();
+  const restored = prefs.restoreOpenSessions ? await restoreSessions() : false;
+  if (!restored) autoConnectSavedServer();
+}
+
 // API modülüne logout fonksiyonunu ver (döngüsel import önlemek için geç bağlama)
 setLogoutFn(logout);
 
@@ -76,6 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initLang();
   initTheme();
   initLock();
+  initSessionSettings();
   initLogin();
   initEditor();
   initDocker();
@@ -187,7 +211,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // Favorileri sunucudan (kalıcı) yükle; gelince listeyi tazele
   loadFavoritesFromServer().then(() => renderFavorites());
 
-  // Başlangıçta kayıtlı sunucuları yükle + refresh sonrası oturumları geri yükle
-  renderSavedServers();
-  restoreSessions();
+  // Başlangıçta kayıtlı sunucuları yükle + tercihe göre oturumu geri yükle / otomatik bağlan
+  initStartupConnections();
 });
