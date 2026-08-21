@@ -3,6 +3,7 @@
 ## Yeni
 
 **Bağlantı & deneyim — yeni**
+- ⚡ **Sunucu başına paralel aktarım:** Aktarımlar artık sunucu bazında yürüyor — **farklı sunuculara** aynı anda yükleme yapabilirsin, biri diğerini beklemez; **aynı sunucuya** gidenler ise düzeni bozmamak için sırayla akar. Hedef sunucu ve klasör iş kuyruğa girerken sabitlenir, böylece sekme değiştirsen bile dosya doğru yere gider. Kuyruk panelinde her satırda **hedef sunucu rozeti** ve tek tek **İptal** düğmesi var; üstteki büyük gösterge açık olan sekmenin aktarımını gösterir.
 - 📝 **İçerik araması (grep):** Dosya gezgininde boş alana sağ tık → "İçerikte ara… (grep)" ile dosyaların **içinde** metin ara; sonuç **dosya · satır · eşleşen satır** olarak listelenir, tıklayınca dosya düzenleyicide açılır. (Yalnızca SFTP.)
 - 📥 **SSH config içe aktarma:** Giriş ekranında "~/.ssh/config'ten içe aktar" ile `Host` bloklarını kayıtlı sunuculara dönüştür (HostName/Port/User + **ProxyJump → atlama sunucusu**). Kimlik bilgisi bağlanırken istenir.
 - 🔥 **Firewall (ufw) yönetimi:** "Sunucu Araçları → Firewall" ile **ufw** kurallarını gör (numaralı), port/servis için **izin ver / engelle**, kural **sil**, güvenlik duvarını **etkinleştir/devre dışı bırak**. (Root ya da parolasız sudo gerekir.)

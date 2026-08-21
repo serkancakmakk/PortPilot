@@ -5,7 +5,7 @@
 //   • Yerel → sunucu:  /api/upload-local (yükleme)
 //   • Sunucu → yerel:  window.desktop.downloadToDir (indirme, masaüstü)
 import { $, escapeHtml, toast } from "./dom.js";
-import { connections, activeConnId, session, cwd } from "./state.js";
+import { connections, activeConnId, cwd, transferCtx, isActiveLane } from "./state.js";
 import { navigate, joinPath, fmtSize, fmtDate, checkedItems } from "./explorer.js";
 import { runTransfer } from "./transfer-remote.js";
 import { enqueueTransfer } from "./transfer-queue.js";
@@ -176,12 +176,15 @@ function transferLeftToRight() {
   if (dp.mode === "local") {
     // Sunucu → yerel klasöre indir (masaüstü)
     const destDir = dp.cwd;
+    // Kaynak sunucu ve klasör ŞİMDİ sabitlenir; iş çalışırken kullanıcı başka
+    // sekmeye geçmiş olabilir.
+    const ctx = transferCtx();
     enqueueTransfer(`İndir → 💻 ${destDir} (${items.length})`, async (report) => {
       let ok = 0, fail = 0;
       for (const it of items) {
-        const full = joinPath(cwd, it.name);
+        const full = joinPath(ctx.cwd, it.name);
         const isDir = it.type === "dir";
-        const url = `${location.origin}/api/${isDir ? "download-folder" : "download"}?session=${encodeURIComponent(session)}&path=${encodeURIComponent(full)}`;
+        const url = `${location.origin}/api/${isDir ? "download-folder" : "download"}?session=${encodeURIComponent(ctx.session)}&path=${encodeURIComponent(full)}`;
         const name = isDir ? it.name + ".tar.gz" : it.name;
         if (report) report.set((ok + fail) / items.length, `${ok + fail}/${items.length} · ${name}`);
         try {
@@ -191,8 +194,8 @@ function transferLeftToRight() {
       }
       if (report) report.set(1, `${ok + fail}/${items.length} dosya`);
       toast(fail ? `${ok} indirildi, ${fail} başarısız` : `${ok} öğe indirildi → ${destDir}`, !!fail);
-      loadLocal(destDir);
-    });
+      if (isActiveLane(ctx.lane) && dp.mode === "local" && dp.cwd === destDir) loadLocal(destDir);
+    }, ctx);
     return;
   }
 
@@ -200,11 +203,13 @@ function transferLeftToRight() {
   if (!dp.tok) return toast("Önce sağ panel için sunucu seç.", true);
   const c = activeConn();
   if (c && c.session === dp.tok) return toast("İki panel aynı sunucu — farklı bir sunucu seç.", true);
-  const sel = items.map((it) => joinPath(cwd, it.name));
+  const ctx = transferCtx();
+  const sel = items.map((it) => joinPath(ctx.cwd, it.name));
+  const target = dp.tok, targetDir = dp.cwd;
   enqueueTransfer(`Soldan al → ${rightLabel()} (${sel.length})`, async (report) => {
-    await runTransfer(session, dp.tok, dp.cwd, sel, report);
-    loadDp();
-  });
+    await runTransfer(ctx.session, target, targetDir, sel, report);
+    if (isActiveLane(ctx.lane) && dp.tok === target && dp.cwd === targetDir) loadDp();
+  }, ctx);
 }
 
 // ---- 📤 Sola gönder: sağ panel seçilenleri → sol (aktif sunucu) ----
@@ -215,8 +220,10 @@ function transferRightToLeft() {
   if (dp.mode === "local") {
     // Yerel → aktif sunucunun açık klasörüne yükle
     const abs = items.map((it) => it.abs).filter(Boolean);
+    const ctx = transferCtx();
     enqueueTransfer(`Yükle → ${activeLabel()} (${abs.length})`, (report) =>
-      import("./local-explorer.js").then((m) => m.uploadLocalPaths(abs, abs, false, report)));
+      import("./local-explorer.js").then((m) =>
+        m.uploadLocalPaths(abs, abs, false, { ...ctx, report })), ctx);
     return;
   }
 
@@ -224,11 +231,13 @@ function transferRightToLeft() {
   if (!dp.tok) return toast("Önce sağ panel için sunucu seç.", true);
   const c = activeConn();
   if (c && c.session === dp.tok) return toast("İki panel aynı sunucu — farklı bir sunucu seç.", true);
+  const ctx = transferCtx();
   const sel = items.map((it) => joinPath(dp.cwd, it.name));
+  const source = dp.tok;
   enqueueTransfer(`Sola gönder → ${activeLabel()} (${sel.length})`, async (report) => {
-    await runTransfer(dp.tok, session, cwd, sel, report);
-    navigate(cwd, false);
-  });
+    await runTransfer(source, ctx.session, ctx.cwd, sel, report);
+    if (isActiveLane(ctx.lane) && cwd === ctx.cwd) navigate(cwd, false);
+  }, ctx);
 }
 
 function toggle() {

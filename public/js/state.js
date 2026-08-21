@@ -69,6 +69,28 @@ export async function loadFavoritesFromServer() {
   return false;
 }
 
+// ---- Aktarım bağlamı ----
+// Bir aktarım kuyruğa alınırken hedef sunucu BURADA sabitlenir. İş çalışırken
+// kullanıcı başka sekmeye geçmiş olabilir; global session/cwd okunursa dosya
+// yanlış sunucuya gider. Ayrıca "lane" (şerit) sayesinde farklı sunuculara
+// giden işler paralel, aynı sunucuya gidenler sırayla çalışır.
+export function transferCtx(overrides) {
+  const c = connections.find((x) => x.id === activeConnId);
+  const label = (c && c.info && (c.info.name || `${c.info.username}@${c.info.host}`)) || "";
+  return { lane: laneOf(activeConnId, session), laneLabel: label, session, cwd, ...(overrides || {}) };
+}
+
+// Bir bağlantının şerit anahtarı (id yoksa oturum jetonuna düş).
+export function laneOf(id, sess) {
+  return id || sess || "default";
+}
+
+// Verilen şerit şu an ekranda görünen bağlantıya mı ait? (Büyük ilerleme
+// göstergesi ve otomatik liste yenileme yalnızca aktif sekme için yapılır.)
+export function isActiveLane(lane) {
+  return !lane || lane === laneOf(activeConnId, session);
+}
+
 // Transfer geçmişi (oturumluk): [{ type:'upload'|'download', label, bytes, time }]
 export let transferLog = [];
 export function pushTransfer(e) {

@@ -109,6 +109,7 @@ export function activateConn(id) {
   import("./recent-local.js").then((m) => m.renderRecentLocal()); // son klasörler host bazlı
   import("./local-last.js").then((m) => m.renderLocalLast()); // bu sunucu için son yerel konum
   import("./local-explorer.js").then((m) => m.resetLocalExplorer()); // gezgin sunucular arası taşınmasın
+  import("./upload.js").then((m) => m.renderProgressBox()); // gösterge bu sunucunun aktarımını göstersin
   navigate(cwd, false);
   // Bu bağlantının kendi görünümünü SENKRON uygula (persistConns'tan önce), ki
   // persistConns→syncActiveConn doğru görünürlüğü kaydetsin. Async import ile

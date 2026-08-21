@@ -1,21 +1,29 @@
 import { $, showLoading, toast } from "./dom.js";
-import { session, cwd, uploadPrefs, setUploadPrefs, pushTransfer } from "./state.js";
+import { session, cwd, uploadPrefs, setUploadPrefs, pushTransfer, transferCtx, isActiveLane } from "./state.js";
 import { navigate, fmtSize } from "./explorer.js";
 
 // Uygulama içi yerel gezginden sürüklenen öğeler bu DataTransfer türüyle gelir.
 const LOCAL_DT_TYPE = "application/x-portpilot-local";
 
-export async function uploadEntries(entries, report) {
-  _report = report || null;
+// ctx: { session, cwd, lane, laneLabel, report }
+// Hedef sunucu ve klasör iş KUYRUĞA EKLENİRKEN sabitlenir; iş çalışmaya
+// başladığında kullanıcı çoktan başka sekmeye geçmiş olabilir.
+// Geriye dönük uyum: ikinci argüman düz bir "report" nesnesi de olabilir.
+export async function uploadEntries(entries, ctx) {
+  ctx = normalizeCtx(ctx);
+  const tSession = ctx.session != null ? ctx.session : session;
+  const targetDir = ctx.cwd != null ? ctx.cwd : cwd;
+  const report = ctx.report || null;
+
   entries = (entries || []).filter((e) => e && e.file);
   if (!entries.length) { toast("Yüklenecek dosya bulunamadı.", true); return; }
 
-  const opts = uploadPrefs || (await askUploadOptions(entries));
+  const opts = uploadPrefs || (await askUploadOptions(entries, null, targetDir));
   if (!opts) { $("file-input").value = ""; return; }
   if (opts.remember) setUploadPrefs({ conflict: opts.conflict, concurrency: opts.concurrency });
 
   const fd = new FormData();
-  fd.append("path", cwd);
+  fd.append("path", targetDir);
   fd.append("conflict", opts.conflict);
   fd.append("concurrency", String(opts.concurrency));
   for (const { file, rel } of entries) {
@@ -23,21 +31,21 @@ export async function uploadEntries(entries, report) {
     fd.append("paths", rel || file.name);
     fd.append("mtimes", String(file.lastModified || 0));
   }
-  const targetDir = cwd;
   // Dosya sayısı/boyutları + adları (kalan dosya + hangi dosya gösterimi için)
   let acc = 0;
   const cum = entries.map(({ file }) => (
     acc += (file && file.size) || 0));
   const names = entries.map(({ rel, file }) => (rel || (file && file.name) || "dosya").split("/").pop());
   const now = Date.now();
-  _progState = {
+  const prog = {
+    lane: ctx.lane || "default", report,
     total: entries.length, cum, totalBytes: acc || 1, names,
     t0: now, lastT: now, lastLoaded: 0, speed: 0,
   };
-  setUploadProgress(0);
+  paintBytes(prog, 0);
   try {
-    const r = await uploadWithProgress(fd);
-    setUploadProgress(null);
+    const r = await uploadWithProgress(fd, tSession, prog, report);
+    paintEnd(prog);
     const parts = [];
     if (r.count) parts.push(`${r.count} yüklendi`);
     if (r.renamed) parts.push(`${r.renamed} yeniden adlandırıldı`);
@@ -49,23 +57,34 @@ export async function uploadEntries(entries, report) {
       toast(parts.join(", ") || "Yükleme tamam");
     }
     if (r.count) pushTransfer({ type: "upload", label: `${r.count} dosya → ${targetDir}`, bytes: acc, time: Date.now() });
-    if (cwd === targetDir) navigate(cwd, false);
+    // Listeyi yalnızca hâlâ o sunucunun aynı klasörüne bakıyorsak tazele.
+    if (isActiveLane(prog.lane) && cwd === targetDir) navigate(cwd, false);
   } catch (e) {
-    setUploadProgress(null);
+    paintEnd(prog);
     toast(e.message, true);
+    throw e; // kuyruk satırı "hata" olarak işaretlensin
   } finally {
     $("file-input").value = "";
   }
 }
 
-export function askUploadOptions(entries, summaryText) {
-  return new Promise((resolve) => {
+// İkinci argüman ya tam bağlam ya da yalnızca kuyruğun report nesnesi olabilir.
+function normalizeCtx(ctx) {
+  if (!ctx) return transferCtx();
+  if (typeof ctx.set === "function") return transferCtx({ report: ctx, lane: ctx.lane });
+  return ctx;
+}
+
+// Yükleme seçenekleri penceresi tektir; paralel işler sırayla sorsun.
+let _dlgChain = Promise.resolve();
+export function askUploadOptions(entries, summaryText, targetDir) {
+  const run = () => new Promise((resolve) => {
     const dlg = $("upload-options");
     if (!dlg) return resolve({ conflict: "overwrite", concurrency: 4, remember: false });
     let bytes = 0;
     for (const e of entries) bytes += (e.file && e.file.size) || 0;
     $("uo-summary").textContent = summaryText
-      || `${entries.length} dosya (${fmtSize(bytes)}) → ${cwd}`;
+      || `${entries.length} dosya (${fmtSize(bytes)}) → ${targetDir != null ? targetDir : cwd}`;
     $("uo-remember").checked = false;
     dlg.hidden = false;
     const cleanup = () => {
@@ -84,14 +103,9 @@ export function askUploadOptions(entries, summaryText) {
     $("uo-start").addEventListener("click", onStart);
     $("uo-cancel").addEventListener("click", onCancel);
   });
-}
-
-let _activeXhr = null;
-// Transfer kuyruğuna ilerleme bildirmek için (uploadEntries çağrısında set edilir).
-let _report = null;
-
-export function cancelUpload() {
-  if (_activeXhr) { try { _activeXhr.abort(); } catch (_) {} }
+  const next = _dlgChain.then(run, run);
+  _dlgChain = next.catch(() => {});
+  return next;
 }
 
 // Süreyi okunabilir biçime çevir: "8 sn", "1 dk 5 sn", "2 sa 3 dk".
@@ -105,6 +119,40 @@ function fmtTime(sec) {
   return `${h} sa ${m % 60} dk`;
 }
 
+// ---- İlerleme gösterimi ----
+// Aynı anda birden çok sunucuya yükleme olabilir; her şeridin son durumu burada
+// tutulur. Üstteki büyük gösterge yalnızca AKTİF sekmenin işini çizer, diğerleri
+// kuyruk panelindeki kendi satırlarında ilerler.
+const laneProgress = new Map(); // lane -> { label, stats:[], pct, writing }
+
+function publish(prog, view, reportArgs) {
+  if (view == null) laneProgress.delete(prog.lane);
+  else laneProgress.set(prog.lane, view);
+  if (prog.report) {
+    if (view == null) prog.report.set(null, "");
+    else prog.report.set(reportArgs[0], reportArgs[1]);
+  }
+  renderProgressBox();
+}
+
+// Aktif sekmeye ait bir iş varsa büyük göstergeyi onunla çiz, yoksa gizle.
+export function renderProgressBox() {
+  const box = $("upload-progress");
+  if (!box) return;
+  let view = null;
+  for (const [lane, v] of laneProgress) if (isActiveLane(lane)) { view = v; break; }
+  if (!view) { box.hidden = true; return; }
+  box.hidden = false;
+  const bar = $("upload-progress-bar");
+  const label = $("upload-progress-label");
+  if (bar) {
+    bar.style.width = Math.max(0, Math.min(100, view.pct || 0)) + "%";
+    bar.classList.toggle("writing", !!view.writing);
+  }
+  if (label) label.textContent = view.label || "Yükleniyor…";
+  setStats(view.stats || []);
+}
+
 // İstatistik satırını (boyut · hız · ETA · yüzde …) HTML olarak yaz.
 function setStats(items) {
   const el = $("upload-progress-stats");
@@ -116,32 +164,89 @@ function setStats(items) {
 }
 
 // Faz 2: sunucu → uzak yazma ilerlemesi (gerçek dosya sayısı)
-function setWriteProgress(done, total) {
-  const box = $("upload-progress");
-  if (!box) return;
-  box.hidden = false;
-  const bar = $("upload-progress-bar");
-  const label = $("upload-progress-label");
+function paintWrite(prog, done, total) {
   const pct = total ? Math.round((done / total) * 100) : 0;
-  if (bar) { bar.classList.remove("writing"); bar.style.width = pct + "%"; }
-  if (label) label.textContent = "Sunucuya yazılıyor…";
-  setStats([
-    `${done}/${total} dosya`,
-    `${Math.max(0, total - done)} kaldı`,
-    `%${pct}`,
-  ]);
-  if (_report) _report.set(total ? done / total : null, `Sunucuya yazılıyor… ${done}/${total} dosya`);
+  publish(prog, {
+    pct, writing: false, label: "Sunucuya yazılıyor…",
+    stats: [`${done}/${total} dosya`, `${Math.max(0, total - done)} kaldı`, `%${pct}`],
+  }, [total ? done / total : null, `Sunucuya yazılıyor… ${done}/${total} dosya`]);
 }
 
-function uploadWithProgress(formData) {
+// Faz 1: tarayıcı → sunucu (bayt gönderimi)
+function paintBytes(prog, frac) {
+  const pct = Math.round((frac || 0) * 100);
+  const { total, cum, totalBytes, names } = prog;
+  const loaded = (frac || 0) * totalBytes;
+  let done = 0;
+  for (const c of cum) { if (loaded >= c - 1) done++; else break; }
+  const remaining = Math.max(0, total - done);
+  const cur = names[Math.min(done, total - 1)] || "";
+
+  if (pct >= 100) {
+    // Bayt gönderimi bitti; sunucu uzak tarafa yazana kadar bekleniyor.
+    publish(prog, {
+      pct: 100, writing: true, label: "Sunucuya yazılıyor…",
+      stats: [`${total}/${total} dosya`, fmtSize(totalBytes), "%100"],
+    }, [null, "Sunucuya yazılıyor…"]);
+    return;
+  }
+
+  // Hız (üstel hareketli ortalama) ve tahmini kalan süre.
+  const now = Date.now();
+  const dt = (now - prog.lastT) / 1000;
+  if (dt >= 0.3) {
+    const inst = (loaded - prog.lastLoaded) / dt;
+    prog.speed = prog.speed ? prog.speed * 0.7 + inst * 0.3 : inst;
+    prog.lastT = now;
+    prog.lastLoaded = loaded;
+  }
+  const speed = prog.speed;
+  const eta = speed > 0 ? (totalBytes - loaded) / speed : Infinity;
+  const bits = [
+    `${fmtSize(loaded)} / ${fmtSize(totalBytes)}`,
+    speed > 0 ? `${fmtSize(speed)}/sn` : null,
+    isFinite(eta) ? `~${fmtTime(eta)} kaldı` : null,
+  ].filter(Boolean);
+
+  publish(prog, {
+    pct, writing: false,
+    label: total > 1 ? `${Math.min(done + 1, total)}/${total} · ${cur}` : (cur || "Yükleniyor…"),
+    stats: [
+      total > 1 ? `${remaining} dosya kaldı` : null,
+      ...bits,
+      `%${pct}`,
+    ],
+  }, [frac, bits.join(" · ")]);
+}
+
+function paintEnd(prog) {
+  publish(prog, null);
+  if (!$("upload-progress")) showLoading(false);
+}
+
+// Her iş kendi XHR'ını taşır; tek global değişken paralel işleri karıştırırdı
+// (bir iş diğerinin isteğini iptal ederdi).
+const laneXhr = new Map();
+
+// Büyük göstergedeki iptal düğmesi: ekranda görünen (aktif sekmenin) işini durdurur.
+export function cancelUpload() {
+  for (const [lane, xhr] of laneXhr) {
+    if (!isActiveLane(lane)) continue;
+    try { xhr.abort(); } catch (_) {}
+  }
+}
+
+function uploadWithProgress(formData, tSession, prog, report) {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    _activeXhr = xhr;
+    laneXhr.set(prog.lane, xhr);
+    if (report && report.setCancel) report.setCancel(() => { try { xhr.abort(); } catch (_) {} });
+    const finish = () => { if (laneXhr.get(prog.lane) === xhr) laneXhr.delete(prog.lane); };
     xhr.open("POST", "/api/upload");
-    if (session) xhr.setRequestHeader("x-session", session);
+    if (tSession) xhr.setRequestHeader("x-session", tSession);
 
     // Faz 1: tarayıcı → sunucu (byte gönderimi)
-    xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) setUploadProgress(ev.loaded / ev.total); };
+    xhr.upload.onprogress = (ev) => { if (ev.lengthComputable) paintBytes(prog, ev.loaded / ev.total); };
 
     // Faz 2: sunucu → uzak (NDJSON akışı; satır satır işle)
     let total = 0, seen = 0, finalObj = null;
@@ -152,13 +257,13 @@ function uploadWithProgress(formData) {
         if (!line) continue;
         let o; try { o = JSON.parse(line); } catch (_) { continue; }
         if (o.total != null) total = o.total;
-        if (o.done != null) setWriteProgress(o.done, total);
+        if (o.done != null) paintWrite(prog, o.done, total);
         if (o.ok || o.error) finalObj = o;
       }
     };
     xhr.onprogress = consume;
     xhr.onload = () => {
-      _activeXhr = null;
+      finish();
       consume();
       if (!finalObj) {
         try { finalObj = JSON.parse((xhr.responseText || "").trim().split("\n").pop()); } catch (_) {}
@@ -167,86 +272,10 @@ function uploadWithProgress(formData) {
       if (xhr.status < 200 || xhr.status >= 300) return reject(new Error((finalObj && finalObj.error) || "Yükleme hatası (" + xhr.status + ")"));
       resolve(finalObj || {});
     };
-    xhr.onerror = () => { _activeXhr = null; reject(new Error("Sunucuya ulaşılamadı.")); };
-    xhr.onabort = () => { _activeXhr = null; reject(new Error("Yükleme iptal edildi.")); };
+    xhr.onerror = () => { finish(); reject(new Error("Sunucuya ulaşılamadı.")); };
+    xhr.onabort = () => { finish(); reject(new Error("Yükleme iptal edildi.")); };
     xhr.send(formData);
   });
-}
-
-let _progState = null;
-
-function setUploadProgress(frac) {
-  const box = $("upload-progress");
-  // %100'e ulaşınca / iş bitince göstergeyi kapat
-  if (frac === null) {
-    _progState = null;
-    setStats([]);
-    if (box) box.hidden = true; else showLoading(false);
-    return;
-  }
-  if (!box) { showLoading(true); return; }
-  box.hidden = false;
-  const pct = Math.round((frac || 0) * 100);
-  const bar = $("upload-progress-bar");
-  const label = $("upload-progress-label");
-  if (bar) {
-    bar.style.width = pct + "%";
-    // Byte transferi bitti ama sunucu hâlâ yazıyor → hareketli belirsiz çubuk
-    bar.classList.toggle("writing", pct >= 100);
-  }
-  if (!label) return;
-
-  if (_progState) {
-    const { total, cum, totalBytes, names } = _progState;
-    const loaded = (frac || 0) * totalBytes;
-    let done = 0;
-    for (const c of cum) { if (loaded >= c - 1) done++; else break; }
-    const remaining = Math.max(0, total - done);
-    const cur = names[Math.min(done, total - 1)] || "";
-
-    if (pct >= 100) {
-      // Byte gönderimi bitti; sunucu uzak tarafa yazana kadar bekleniyor.
-      label.textContent = "Sunucuya yazılıyor…";
-      setStats([`${total}/${total} dosya`, fmtSize(totalBytes), `%100`]);
-      if (_report) _report.set(null, "Sunucuya yazılıyor…");
-      return;
-    }
-
-    // Hız (üstel hareketli ortalama) ve tahmini kalan süre.
-    const now = Date.now();
-    const dt = (now - _progState.lastT) / 1000;
-    if (dt >= 0.3) {
-      const inst = (loaded - _progState.lastLoaded) / dt;
-      _progState.speed = _progState.speed ? _progState.speed * 0.7 + inst * 0.3 : inst;
-      _progState.lastT = now;
-      _progState.lastLoaded = loaded;
-    }
-    const speed = _progState.speed;
-    const eta = speed > 0 ? (totalBytes - loaded) / speed : Infinity;
-
-    label.textContent = total > 1
-      ? `${done + 1 > total ? total : done + 1}/${total} · ${cur}`
-      : (cur || "Yükleniyor…");
-    setStats([
-      total > 1 ? `${remaining} dosya kaldı` : null,
-      `${fmtSize(loaded)} / ${fmtSize(totalBytes)}`,
-      speed > 0 ? `${fmtSize(speed)}/sn` : null,
-      isFinite(eta) ? `~${fmtTime(eta)} kaldı` : null,
-      `%${pct}`,
-    ]);
-    if (_report) {
-      const bits = [
-        `${fmtSize(loaded)} / ${fmtSize(totalBytes)}`,
-        speed > 0 ? `${fmtSize(speed)}/sn` : null,
-        isFinite(eta) ? `~${fmtTime(eta)} kaldı` : null,
-      ].filter(Boolean);
-      _report.set(frac, bits.join(" · "));
-    }
-  } else {
-    label.textContent = "Yükleniyor…";
-    setStats([`%${pct}`]);
-    if (_report) _report.set(frac, null);
-  }
 }
 
 // ---- Sürükle-bırak ----
@@ -293,9 +322,13 @@ export function initDragDrop() {
       // Geriye dönük uyum: eski biçim düz dizi olabilir.
       const paths = Array.isArray(payload) ? payload : (payload && payload.paths) || [];
       const folders = (payload && payload.folders) || [];
-      if (paths.length) import("./transfer-queue.js").then((tq) =>
-        tq.enqueueTransfer(`${paths.length} öğe yükle`, (report) =>
-          import("./local-explorer.js").then((m) => m.uploadLocalPaths(paths, folders, false, report))));
+      if (paths.length) {
+        const ctx = transferCtx();
+        import("./transfer-queue.js").then((tq) =>
+          tq.enqueueTransfer(`${paths.length} öğe yükle`, (report) =>
+            import("./local-explorer.js").then((m) =>
+              m.uploadLocalPaths(paths, folders, false, { ...ctx, report })), ctx));
+      }
       return;
     }
 
@@ -321,15 +354,12 @@ export function initDragDrop() {
     const hasDir = roots.some((r) => r && r.isDirectory);
 
     if (roots.length) {
-      setUploadProgress(0);
       try {
         const entries = [];
         for (const root of roots) await walkEntry(root, "", entries);
-        setUploadProgress(null);
         if (entries.length) return queueEntries(`Klasör yükle (${entries.length} dosya)`, entries);
         if (hasDir) return toast("Klasör boş görünüyor ya da okunamadı.", true);
       } catch (err) {
-        setUploadProgress(null);
         return toast("Klasör okunamadı: " + ((err && err.message) || err), true);
       }
     }
@@ -340,10 +370,13 @@ export function initDragDrop() {
   });
 }
 
-// uploadEntries'i transfer kuyruğuna ekler (sıraya alır, üst üste binmez).
+// uploadEntries'i transfer kuyruğuna ekler. Aynı sunucuya giden işler sıraya
+// girer; farklı sunuculara gidenler paralel çalışır.
 function queueEntries(label, entries) {
   if (!entries || !entries.length) return;
-  import("./transfer-queue.js").then((tq) => tq.enqueueTransfer(label, (report) => uploadEntries(entries, report)));
+  const ctx = transferCtx();
+  import("./transfer-queue.js").then((tq) =>
+    tq.enqueueTransfer(label, (report) => uploadEntries(entries, { ...ctx, report }), ctx));
 }
 
 function readAllEntries(reader) {

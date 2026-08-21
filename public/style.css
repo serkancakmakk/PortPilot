@@ -1726,6 +1726,31 @@ tr.dir .fname {
 .tq-row.done { opacity: .65; }
 .tq-row.error { background: rgba(220, 38, 38, .08); }
 .tq-row .tq-err { flex-basis: 100%; font-size: 11px; color: #dc2626; }
+/* Aktarımlar paralel akabildiği için satır hangi sunucuya gittiğini yazar. */
+.tq-row .tq-lane {
+  flex: 0 0 auto;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, .12);
+  color: var(--muted, #6b7280);
+}
+.tq-row .tq-x {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  color: var(--muted, #6b7280);
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 5px;
+}
+.tq-row .tq-x:hover { background: rgba(220, 38, 38, .12); color: #dc2626; }
 .tq-row .tq-pct {
   flex: 0 0 auto;
   font-size: 11px;

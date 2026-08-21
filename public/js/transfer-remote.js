@@ -1,7 +1,7 @@
 // Sunucudan sunucuya aktarım: aktif (kaynak) sunucudaki öğeleri başka bir bağlı
 // (hedef) sunucuya gönderir. Sunucu, baytları iki bağlantı arasında relay eder.
 import { $, escapeHtml, toast } from "./dom.js";
-import { connections, activeConnId, session } from "./state.js";
+import { connections, activeConnId, session, transferCtx } from "./state.js";
 
 export function showRemoteTransfer(sources) {
   sources = (sources || []).filter(Boolean);
@@ -41,9 +41,12 @@ export function showRemoteTransfer(sources) {
     if (!conn) { toast("Hedef sunucu seç.", true); return; }
     close();
     const host = (conn.info && conn.info.host) || "";
+    // Şerit = KAYNAK sunucu: aynı sunucudan çıkan aktarımlar sıraya girer, başka
+    // sunuculardan çıkanlar aynı anda akar.
+    const ctx = transferCtx();
     import("./transfer-queue.js").then((tq) =>
       tq.enqueueTransfer(`Sunucuya aktar → ${host} (${sources.length})`,
-        (report) => runTransfer(sourceSession, conn.session, dest, sources, report)));
+        (report) => runTransfer(sourceSession, conn.session, dest, sources, report), ctx));
   };
 }
 

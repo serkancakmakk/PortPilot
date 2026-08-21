@@ -3,7 +3,7 @@
 // seçip yükleyebilir, manuel yol yazabilir veya öğeleri yükleme alanına sürükleyebilir.
 import { $, toast } from "./dom.js";
 import { applyIcons, iconFor } from "./icons.js";
-import { cwd, session } from "./state.js";
+import { cwd, session, transferCtx, isActiveLane } from "./state.js";
 import { navigate, fmtSize, fmtDate } from "./explorer.js";
 import { askUploadOptions } from "./upload.js";
 import { rememberLocalPaths, renderRecentLocal } from "./recent-local.js";
@@ -196,25 +196,40 @@ function updateFoot() {
   }
 }
 
-// Verilen yolları sunucudaki güncel dizine yükler; seçenek sorar. rememberFolders
+// Verilen yolları HEDEF sunucunun dizinine yükler; seçenek sorar. rememberFolders
 // verilirse yalnızca onlar "son klasörler"e eklenir (dosyalar kirletmez).
-// sync=true → seçenek sormaz, yalnızca değişen/yeni dosyaları gönderir (senkronizasyon).
-export async function uploadLocalPaths(paths, rememberFolders, sync, report) {
+// sync=true → seçenek sormaz, yalnızca değişen/yeni dosyaları gönderir.
+// ctx: { session, cwd, lane, report } — iş kuyruğa eklenirken sabitlenen hedef;
+// çalışmaya başladığında kullanıcı başka sunucu sekmesinde olabilir. Geriye dönük
+// uyum için 4. argüman düz bir "report" nesnesi de olabilir.
+export async function uploadLocalPaths(paths, rememberFolders, sync, ctx) {
+  ctx = !ctx ? transferCtx()
+    : (typeof ctx.set === "function" ? transferCtx({ report: ctx, lane: ctx.lane }) : ctx);
+  const tSession = ctx.session != null ? ctx.session : session;
+  const targetDir = ctx.cwd != null ? ctx.cwd : cwd;
+  const report = ctx.report || null;
+  const mine = () => isActiveLane(ctx.lane); // lx-info yalnızca aktif sekme içindir
+
   paths = (paths || []).filter(Boolean);
   if (!paths.length) return;
   const names = paths.map((p) => p.split(/[\\/]/).filter(Boolean).pop());
   const opts = sync
     ? { conflict: "overwrite_size_newer", concurrency: 4 }
-    : await askUploadOptions([], `${paths.length} öğe (${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}) → ${cwd}`);
+    : await askUploadOptions([], `${paths.length} öğe (${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}) → ${targetDir}`, targetDir);
   if (!opts) return; // iptal
 
   rememberLocalPaths(rememberFolders || []); // yalnızca klasörleri hatırla
-  if ($("lx-info")) $("lx-info").textContent = sync ? "Senkronize ediliyor…" : "Yükleniyor…";
+  const status = (t) => { if (mine() && $("lx-info")) $("lx-info").textContent = t; };
+  status(sync ? "Senkronize ediliyor…" : "Yükleniyor…");
+  const ac = new AbortController();
+  if (report && report.setCancel) report.setCancel(() => ac.abort());
+  let toasted = false; // hata iki kez bildirilmesin
   try {
     const res = await fetch("/api/upload-local", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...(session ? { "x-session": session } : {}) },
-      body: JSON.stringify({ path: cwd, localPaths: paths, conflict: opts.conflict, concurrency: opts.concurrency }),
+      signal: ac.signal,
+      headers: { "Content-Type": "application/json", ...(tSession ? { "x-session": tSession } : {}) },
+      body: JSON.stringify({ path: targetDir, localPaths: paths, conflict: opts.conflict, concurrency: opts.concurrency }),
     });
     if (res.status === 401) { import("./connections.js").then((m) => m.logout()); throw new Error("Oturum doldu."); }
 
@@ -233,7 +248,7 @@ export async function uploadLocalPaths(paths, rememberFolders, sync, report) {
         if (o.total != null) total = o.total;
         if (o.done != null && total) {
           const pct = Math.round((o.done / total) * 100);
-          if ($("lx-info")) $("lx-info").textContent = `${sync ? "Senkronize ediliyor" : "Yükleniyor"}… %${pct}`;
+          status(`${sync ? "Senkronize ediliyor" : "Yükleniyor"}… %${pct}`);
           if (report) report.set(o.done / total, `${o.done}/${total} dosya`);
         }
         if (o.ok || o.error) last = o;
@@ -241,18 +256,21 @@ export async function uploadLocalPaths(paths, rememberFolders, sync, report) {
     }
     if (buf.trim()) { try { last = JSON.parse(buf.trim()); } catch (_) {} }
 
-    if (last && last.error) toast(last.error, true);
-    else {
-      const c = (last && last.count) || 0;
-      const skipped = last && last.skipped ? last.skipped : 0;
-      if (sync) toast(`Senkronize edildi (${c} değişen gönderildi${skipped ? `, ${skipped} güncel` : ""})`);
-      else toast(`Yüklendi (${c} dosya${skipped ? `, ${skipped} atlandı` : ""})`);
-      navigate(cwd);
-    }
+    if (last && last.error) { toasted = true; toast(last.error, true); throw new Error(last.error); }
+    const c = (last && last.count) || 0;
+    const skipped = last && last.skipped ? last.skipped : 0;
+    if (sync) toast(`Senkronize edildi (${c} değişen gönderildi${skipped ? `, ${skipped} güncel` : ""})`);
+    else toast(`Yüklendi (${c} dosya${skipped ? `, ${skipped} atlandı` : ""})`);
+    // Listeyi yalnızca hâlâ o sunucunun aynı klasörüne bakıyorsak tazele.
+    if (mine() && cwd === targetDir) navigate(cwd);
   } catch (e) {
-    toast(e.message || (sync ? "Senkronizasyon başarısız" : "Yükleme başarısız"), true);
+    const msg = e && e.name === "AbortError"
+      ? "Yükleme iptal edildi"
+      : (e.message || (sync ? "Senkronizasyon başarısız" : "Yükleme başarısız"));
+    if (!toasted) toast(msg, true);
+    throw new Error(msg); // kuyruk satırı "hata" olarak işaretlensin
   } finally {
-    updateFoot();
+    if (mine()) updateFoot();
   }
 }
 
@@ -261,8 +279,9 @@ function uploadSelected(sync) {
   const paths = items.map((i) => i.path);
   const folders = foldersToRemember(items, curPath);
   const label = `${sync ? "Senkronize" : "Yükle"} (${paths.length} öğe)`;
+  const ctx = transferCtx();
   import("./transfer-queue.js").then((tq) =>
-    tq.enqueueTransfer(label, (report) => uploadLocalPaths(paths, folders, sync, report)));
+    tq.enqueueTransfer(label, (report) => uploadLocalPaths(paths, folders, sync, { ...ctx, report }), ctx));
 }
 
 export function initLocalExplorer() {

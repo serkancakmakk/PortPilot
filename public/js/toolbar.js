@@ -1,7 +1,7 @@
 import { $, toast, showLoading } from "./dom.js";
 import { icon } from "./icons.js";
 import { api } from "./api.js";
-import { cwd, history, session, currentItems, selectedItem, showHidden, viewMode, fileFilter, uploadPrefs, setShowHidden, setViewMode, setFileFilter, setHistory, setUploadPrefs } from "./state.js";
+import { cwd, history, session, currentItems, selectedItem, showHidden, viewMode, fileFilter, uploadPrefs, setShowHidden, setViewMode, setFileFilter, setHistory, setUploadPrefs, transferCtx } from "./state.js";
 import { navigate, renderList, applyFileView, syncCheckState, checkedItems, downloadItem, triggerDownload, fmtSize, sortBy } from "./explorer.js";
 import { promptDialog } from "./dialog.js";
 
@@ -139,6 +139,10 @@ export function initToolbar() {
 // Yüklemeyi transfer kuyruğuna ekle (sıraya alır, üst üste binmez).
 function queueUpload(label, entries) {
   if (!entries.length) return;
+  // Hedef sunucu/klasör ŞİMDİ sabitlenir; aynı sunucuya giden işler sıraya girer,
+  // farklı sunuculara gidenler paralel akar.
+  const ctx = transferCtx();
   import("./transfer-queue.js").then((tq) =>
-    tq.enqueueTransfer(label, (report) => import("./upload.js").then((m) => m.uploadEntries(entries, report))));
+    tq.enqueueTransfer(label, (report) =>
+      import("./upload.js").then((m) => m.uploadEntries(entries, { ...ctx, report })), ctx));
 }
